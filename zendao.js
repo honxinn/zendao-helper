@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/cn-workday@1.0.11/dist/cn-workday.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.3.4
+// @version     1.3.5
 // @author      LinHQ & Mr.Cheng
 // @license     GPLv3
 // @description 标记 bug 留存时间、解决方案填写人提示、计算每日工时、一键复制解决的 bug、解决指派 bug 强制填写工时、Bug 点击在新标签页打开

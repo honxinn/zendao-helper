@@ -187,7 +187,7 @@
             window.location.href = '/my-work-task.html';
         });
         zenGuard.click(function () {
-            window.open('http://192.168.0.161:8090')
+            window.open('http://172.21.15.106:8090/')
         })
 
         $('#menuMainNav .divider').before(myBug, myTask, zenGuard);

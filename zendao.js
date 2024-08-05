@@ -175,19 +175,23 @@
       }
 
       async function setupLeftMenu() {
-          const element = await waitForContentInContainer('body', '#menuMainNav')
-          const myBug = $('<li><a href="/my-work-bug.html" class="show-in-app"><i class="icon icon-bug"></i><span class="text num">我的Bug</span></a></li>');
-          const myTask = $('<li><a href="/my-work-task.html" class="show-in-app"><i class="icon icon-list-alt"></i><span class="text num">我的任务</span></a></li>');
+        const element = await waitForContentInContainer('body', '#menuMainNav')
+        const myBug = $('<li><a href="/my-work-bug.html" class="show-in-app"><i class="icon icon-bug"></i><span class="text num">我的Bug</span></a></li>');
+        const myTask = $('<li><a href="/my-work-task.html" class="show-in-app"><i class="icon icon-list-alt"></i><span class="text num">我的任务</span></a></li>');
+        const zenGuard = $('<li><a class="show-in-app"><i class="icon icon-magic"></i><span class="text num">禅道卫士</span></a></li>');
 
-          myBug.click(function () {
-              window.location.href = '/my-work-bug.html';
-          });
-          myTask.click(function () {
-              window.location.href = '/my-work-task.html';
-          });
+        myBug.click(function () {
+            window.location.href = '/my-work-bug.html';
+        });
+        myTask.click(function () {
+            window.location.href = '/my-work-task.html';
+        });
+        zenGuard.click(function () {
+            window.open('http://192.168.0.161:8090')
+        })
 
-          $('#menuMainNav .divider').before(myBug, myTask);
-      }
+        $('#menuMainNav .divider').before(myBug, myTask, zenGuard);
+    }
 
       // 设置Bug详情页功能
       function setupBugDetailPage() {

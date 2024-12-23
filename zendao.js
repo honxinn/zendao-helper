@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/cn-workday@1.0.11/dist/cn-workday.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.3.5
+// @version     1.3.6
 // @author      LinHQ & Mr.Cheng
 // @license     GPLv3
 // @description 仅针对 OS-EASY 适配，标记 bug 留存时间、解决方案填写人提示、计算每日工时、一键复制解决的 bug、解决指派 bug 强制填写工时、Bug 点击在新标签页打开
@@ -165,10 +165,12 @@
 
       // 处理默认路径
       function handleDefaultPath(path) {
-          if (/bug-view-\d+\.html$/m.test(path)) {
+          if (/bug-view-\d+\.html/.test(path)) {
               setupBugDetailPage();
           } else if (/resolvedbyme/.test(path)) {
               setupResolvedByMePage();
+          } else if (/build-view-\d+.html/.test(path)) {
+              setupVersionBugPage()
           }
 
           setupLeftMenu()
@@ -196,7 +198,7 @@
       // 设置Bug详情页功能
       function setupBugDetailPage() {
           $('.label.label-id').on('click', function () {
-              GM_setClipboard(`:bug: ${$(this).text().trim()} ${$(this).next().text().trim().replace(/【.+】/, '')}`);
+              GM_setClipboard(`🔨bug(${$(this).text().trim()}): ${$(this).next().text().trim().replace(/【.+】(【.+】)*(-)*/, '')}`);
           }).attr('title', '点击复制 Bug').css({ cursor: 'pointer' });
           enforceEffortLogging();
       }
@@ -230,6 +232,28 @@
               }).get().join('');
               GM_setClipboard(bugs);
           }).insertBefore('.btn-group.dropdown');
+      }
+
+      // 迭代版本页面中，添加一键复制已勾选BUG的按钮
+      function addCopyBtnOnVersionBugPage() {
+        $('<div class="btn btn-success table-actions btn-toolbar">复制勾选</div>').on('click', function () {
+                const bugs = $('tr.checked').map( () => {
+                    const tds = $(this).find("td")
+                    const id = $(tds[0]).text().trim()
+                    const title = $(tds[1]).text().trim()
+                    const resolver = $(tds[5]).text().trim()
+                    return `${id} ${title}\t${resolver}\n`
+            })
+            GM_setClipboard(bugs.get().join(''))
+        }).insertAfter('.table-actions.btn-toolbar')
+      }
+
+      /**
+       * 配置迭代版本BUG页面
+       * 1. 添加一键复制已勾选BUG的按钮
+       */
+      function setupVersionBugPage() {
+        addCopyBtnOnVersionBugPage()
       }
 
       // 根据时间范围生成字符串

@@ -237,7 +237,7 @@
       // 迭代版本页面中，添加一键复制已勾选BUG的按钮
       function addCopyBtnOnVersionBugPage() {
         $('<div class="btn btn-success table-actions btn-toolbar">复制勾选</div>').on('click', function () {
-                const bugs = $('tr.checked').map( () => {
+                const bugs = $('tr.checked').map( function () {
                     const tds = $(this).find("td")
                     const id = $(tds[0]).text().trim()
                     const title = $(tds[1]).text().trim()

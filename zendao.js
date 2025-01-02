@@ -3,10 +3,10 @@
 // @namespace   Violentmonkey Scripts
 // @match       http*://172.16.203.14/*
 // @require     https://unpkg.com/jquery@3.3.1/dist/jquery.min.js
-// @require     https://unpkg.com/cn-workday@1.0.11/dist/cn-workday.js
+// @require     https://unpkg.com/cn-workday@1.0.12/dist/cn-workday.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.3.6
+// @version     1.3.7
 // @author      LinHQ & Mr.Cheng
 // @license     GPLv3
 // @description 仅针对 OS-EASY 适配，标记 bug 留存时间、解决方案填写人提示、计算每日工时、一键复制解决的 bug、解决指派 bug 强制填写工时、Bug 点击在新标签页打开

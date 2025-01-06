@@ -6,8 +6,8 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.3.8
-// @author      LinHQ & Mr.Cheng
+// @version     1.4.0
+// @author      LHQ & CHH & ZCX
 // @license     GPLv3
 // @description 仅针对 OS-EASY 适配，标记 bug 留存时间、解决方案填写人提示、计算每日工时、一键复制解决的 bug、解决指派 bug 强制填写工时、Bug 点击在新标签页打开
 // @downloadURL https://update.greasyfork.org/scripts/502308/OS-EASY%20%E4%B8%93%E5%B1%9E%E7%A6%85%E9%81%93%E6%A0%87%E8%AE%B0%E5%8A%A9%E6%89%8B.user.js

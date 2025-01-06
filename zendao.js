@@ -3,7 +3,7 @@
 // @namespace   Violentmonkey Scripts
 // @match       http*://172.16.203.14/*
 // @require     https://unpkg.com/jquery@3.3.1/dist/jquery.min.js
-// @require     https://unpkg.com/cn-workday@1.0.12/dist/cn-workday.js
+// @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
 // @version     1.3.8
@@ -275,7 +275,7 @@
           let ms = 0;
 
           while (start.getTime() < end) {
-              if (CnWorkday.isWorkday(start)) {
+              if (workdayCn.isWorkday(start)) {
                   ms += msPerDay;
               }
               start.setDate(start.getDate() + 1);

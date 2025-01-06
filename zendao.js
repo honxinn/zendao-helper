@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/cn-workday@1.0.12/dist/cn-workday.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.3.7
+// @version     1.3.8
 // @author      LinHQ & Mr.Cheng
 // @license     GPLv3
 // @description 仅针对 OS-EASY 适配，标记 bug 留存时间、解决方案填写人提示、计算每日工时、一键复制解决的 bug、解决指派 bug 强制填写工时、Bug 点击在新标签页打开
@@ -171,8 +171,9 @@
               setupResolvedByMePage();
           } else if (/build-view-\d+.html/.test(path)) {
               setupVersionBugPage()
+          } else if (/effort-createForObject-bug-\d+.html/.test(path)) {
+            setupBugEffortPage()
           }
-
           setupLeftMenu()
       }
 
@@ -254,6 +255,16 @@
        */
       function setupVersionBugPage() {
         addCopyBtnOnVersionBugPage()
+      }
+
+      /**
+       * Bug填写工时窗口默认填充1h处理BUG
+       */
+      function setupBugEffortPage() {
+        // 自动填BUG工时、内容
+        let bug_id=$("#mainContent > div > h2 > span.label.label-id")[0].innerHTML
+        $(".form-control")[1].value = 1
+        $(".form-control")[2].value = "处理BUG: " + bug_id
       }
 
       // 根据时间范围生成字符串

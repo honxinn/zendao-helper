@@ -112,9 +112,143 @@
           if (total != 0) {
               const colorClass = total > 10 || total < 8 ? 'warn' : 'fine';
               $(dayElement).find('.heading').prepend(`<span class="zm-day ${colorClass}">【${total.toFixed(1)}小时】</span>`);
+              $(dayElement).find('.heading').prepend(`<div class="copy-time btn-toolbar pull-left" style="margin-left:25px;display:flex;align-items:center;">复制</div>`);
+              $(dayElement).find('.heading').find('.copy-time').on('click', async function (e) { copyTaskTime(e) })
           }
       }
 
+      
+      // 复制任务时间
+      async function copyTaskTime(e) {
+        e.stopPropagation()
+        const targetEle = e.target
+        const content = $(targetEle).parent('.heading').next('.content')
+        function calculateTaskTimes(startTime, tasks) {
+          let currentHour = parseInt(startTime.split(':')[0])
+          let currentMinute = parseInt(startTime.split(':')[1])
+          const results = []
+          let startDate = new Date()
+          startDate.setHours(currentHour)
+          startDate.setMinutes(currentMinute)
+
+          const middleStartDate = new Date()
+          middleStartDate.setHours(12)
+          middleStartDate.setMinutes(0)
+          const middleEndDate = new Date()
+          middleEndDate.setHours(14)
+          middleEndDate.setMinutes(0)
+
+          let endDate = null
+
+          tasks.forEach((task) => {
+            const hourStamp = 60 * 60 * 1000
+            const timeParts = task.time.split('h')
+            let hours = timeParts[0] * 1
+            let startStamp = startDate.getTime()
+            const middleStamp = middleStartDate.getTime()
+            const middleEndStamp = middleEndDate.getTime()
+            let endStamp = startStamp + hours * hourStamp
+
+            if (startStamp <= middleStamp && endStamp > middleStamp) {
+              endStamp = endStamp + 2 * hourStamp
+            }
+            const start = new Date(startStamp)
+            const end = new Date(endStamp)
+            const startTimeStr = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
+            const endTimeStr = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+            startDate = new Date(endStamp)
+            results.push({
+              ...task,
+              start: startTimeStr,
+              end: endTimeStr
+            })
+          })
+
+          return results
+        }
+
+        // 示例用法
+        const start = '08:30'
+        let tempTasks = Array.from(
+          content
+            .find('.events')
+            .find('.event')
+            .map(function () {
+              const title = $(this).find('.title').text().trim()
+              const time = $(this).find('.time').text().trim()
+              const id = $(this).data('id')
+              return {
+                id,
+                time,
+                title
+              }
+            })
+        )
+        tempTasks = calculateTaskTimes(start, tempTasks)
+        const parseTaskDoc = function (doc) {
+          const objReg = new RegExp(`对象\n`)
+          const id = $(doc).find('.main-header span.label').text()
+          let item = {}
+          $(doc)
+            .find('table tbody tr')
+            .each(function () {
+              // console.log($(this).text())
+              const text = $(this).text()
+              if (objReg.test(text)) {
+                item.obj = text.replace(objReg, '').replace('\n', '').trim()
+                item.href = $(this).find('a').attr('href')
+              }
+            })
+          return { ...item, id }
+        }
+        const fetchTaskData = async function () {
+          const docs = await Promise.all(
+            tempTasks.map(async function (t) {
+              return fetchDocument(
+                `/effort-view-${t.id}.html?onlybody=yes&tid=i2sh4q46`
+              )
+            })
+          )
+          return docs.map((d) => parseTaskDoc(d))
+        }
+        const taskObjData = await fetchTaskData()
+        let tasks = tempTasks.map((t) => {
+          const findOne = taskObjData.find(
+            (task) => task.id * 1 === t.id * 1
+          )
+          return { ...t, ...findOne }
+        })
+        tasks = tasks
+          .map((t) => {
+            return `- [ ] ${t.start} - ${t.end} #工时 ${t.time}\t${t.title}\t ${t.obj && t.href ? `[${t.obj}](${location.origin + t.href})\t` : ''}\n`
+          })
+          .join('')
+        GM_setClipboard(tasks)
+      }
+      
+      // 设置 执行-版本-6.0.5-future-我解决的bug 页面功能
+      function setupResolvedByMeBuildPage() {
+        $(
+          '<div class="btn btn-success" style="margin-right:10px;">复制勾选</div>'
+        )
+          .on('click', function () {
+            const bugs = $('tr.checked')
+              .map(function () {
+                const tds = $(this).find('td')
+                const id = $(tds[0]).text().trim()
+                const raw = $(tds[1]).text().trim()
+                let range = raw.match(/【([^【】]+?\/.+?)】/)
+                range = !range ? '' : range[1].replace(/(\d\.?|-){3}/, '') // 移除版本号
+                const title = raw.slice(raw.lastIndexOf('】') + 1)
+                return `${localStorage.getItem('zm-username')}\t\t${id} ${title}\t${range}\n`
+              })
+              .get()
+              .join('')
+            GM_setClipboard(bugs)
+          })
+          .insertBefore('#bugs .actions a')
+      }
+      
       // 处理 my-work-bug 页面
       function handleMyWorkBug(colors) {
           GM_addStyle(`
@@ -173,6 +307,8 @@
               setupVersionBugPage()
           } else if (/effort-createForObject-bug-\d+.html/.test(path)) {
             setupBugEffortPage()
+          } else if (/build-view/.test(path)) {
+            setupResolvedByMeBuildPage()
           }
           setupLeftMenu()
       }

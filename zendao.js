@@ -225,7 +225,7 @@
           .join('')
         GM_setClipboard(tasks)
       }
-      
+
       // 设置 执行-版本-6.0.5-future-我解决的bug 页面功能
       function setupResolvedByMeBuildPage() {
         $(
@@ -305,10 +305,9 @@
               setupResolvedByMePage();
           } else if (/build-view-\d+.*\.html/.test(path)) {
               setupVersionBugPage()
+              setupResolvedByMeBuildPage()
           } else if (/effort-createForObject-bug-\d+.html/.test(path)) {
             setupBugEffortPage()
-          } else if (/build-view/.test(path)) {
-            setupResolvedByMeBuildPage()
           }
           setupLeftMenu()
       }
@@ -382,7 +381,7 @@
                     return `${id} ${title}\t${resolver}\n`
             })
             GM_setClipboard(bugs.get().join(''))
-        }).insertAfter('.table-actions.btn-toolbar')
+        }).insertBefore('.table-statistic')
       }
 
       /**

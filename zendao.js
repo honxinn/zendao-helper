@@ -1086,7 +1086,12 @@
           setCookie('pagerMyEffort', 500);
           
           // 获取数据
-          const response = await fetch('http://172.16.203.14:2980/my-effort-all-date_desc-1000000-500-1.json');
+          const response = await fetch('http://172.16.203.14:2980/my-effort-all-date_desc-1000000-500-1.json', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
           const rawData = await response.json();
           const data = JSON.parse(rawData.data);
           const efforts = data.efforts;

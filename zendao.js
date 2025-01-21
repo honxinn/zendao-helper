@@ -109,6 +109,7 @@
       // 更新天数元素的显示
       function updateDayElement(dayElement, total) {
           $(dayElement).find('.zm-day').remove();
+          $(dayElement).find('.copy-time').remove();
           if (total != 0) {
               const colorClass = total > 10 || total < 8 ? 'warn' : 'fine';
               $(dayElement).find('.heading').prepend(`<span class="zm-day ${colorClass}">【${total.toFixed(1)}小时】</span>`);

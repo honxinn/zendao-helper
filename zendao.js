@@ -1082,47 +1082,61 @@
       // 注册工时数据获取策略
       dataStrategies.register('workHours', {
         async fetch() {
-          // 设置分页
-          setCookie('pagerMyEffort', 500);
-          
-          // 获取数据
-          const response = await fetch('http://172.16.203.14:2980/my-effort-all-date_desc-1000000-500-1.json', {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json'
+          try {
+            // 设置分页
+            setCookie('pagerMyEffort', 500);
+            
+            // 修改 fetch 请求，添加错误处理
+            const response = await fetch('/my-effort-all-date_desc-1000000-500-1.json');
+            const text = await response.text(); // 先获取文本响应
+            
+            // 尝试解析 JSON
+            let rawData;
+            try {
+              rawData = JSON.parse(text);
+            } catch (e) {
+              throw new Error('Invalid JSON response');
             }
-          });
-          const rawData = await response.json();
-          const data = JSON.parse(rawData.data);
-          const efforts = data.efforts;
-          
-          // 获取日期范围
-          const startDate = new Date(efforts[efforts.length - 1].date);
-          const endDate = new Date(efforts[0].date);
-          
-          // 获取周期内的工作日
-          const workdays = workdayCn.getWorkdaysBetween(startDate, endDate);
-          
-          // 计算每天的工时
-          const dailyHours = new Map();
-          efforts.forEach(effort => {
-              const date = effort.date;
-              const hours = parseFloat(effort.consumed);
-              dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
-          });
-          
-          // 找出工时不足的日期并按时间逆序排序
-          return workdays
-            .map(date => date.toISOString().split('T')[0])
-            .filter(date => {
-                const hours = dailyHours.get(date) || 0;
-                return hours < 8;
-            })
-            .map(date => ({
-                date,
-                hours: dailyHours.get(date) || 0
-            }))
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // 确保数据格式正确
+            if (!rawData.data) {
+              throw new Error('Invalid data format');
+            }
+            
+            const data = JSON.parse(rawData.data);
+            const efforts = data.efforts;
+            
+            // 获取日期范围
+            const startDate = new Date(efforts[efforts.length - 1].date);
+            const endDate = new Date(efforts[0].date);
+            
+            // 获取周期内的工作日
+            const workdays = workdayCn.getWorkdaysBetween(startDate, endDate);
+            
+            // 计算每天的工时
+            const dailyHours = new Map();
+            efforts.forEach(effort => {
+                const date = effort.date;
+                const hours = parseFloat(effort.consumed);
+                dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
+            });
+            
+            // 找出工时不足的日期并按时间逆序排序
+            return workdays
+              .map(date => date.toISOString().split('T')[0])
+              .filter(date => {
+                  const hours = dailyHours.get(date) || 0;
+                  return hours < 8;
+              })
+              .map(date => ({
+                  date,
+                  hours: dailyHours.get(date) || 0
+              }))
+              .sort((a, b) => new Date(b.date) - new Date(a.date));
+          } catch (err) {
+            console.error('Error fetching work hours:', err);
+            throw err; // 向上传递错误
+          }
         }
       });
 

@@ -351,6 +351,21 @@
       // 设置 执行-版本-6.0.5-future-我解决的bug 页面功能
       function setupResolvedByMeBuildPage() {
         $(
+          '<div class="btn btn-success" style="margin-right:10px;">勾选自己</div>'
+        )
+          .on('click', function () {
+            const trList = $('#bugList tbody > tr')
+            trList.each(function () {
+              const tds = $(this).find('td')
+              const name = $(tds[5]).text().trim()
+              if (name.includes(localStorage.getItem('zm-username'))) {
+                $(this).trigger('click')
+              }
+            })
+          })
+          .insertBefore('#bugs .actions a')
+          
+        $(
           '<div class="btn btn-success" style="margin-right:10px;">复制勾选</div>'
         )
           .on('click', function () {
@@ -369,6 +384,7 @@
             GM_setClipboard(bugs)
           })
           .insertBefore('#bugs .actions a')
+          
       }
       
       // 处理 my-work-bug 页面

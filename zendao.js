@@ -6,16 +6,37 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.4.1
+// @version     1.4.2
 // @author      LHQ & CHH & ZCX
 // @license     GPLv3
-// @description 仅针对 OS-EASY 适配，标记 bug 留存时间、解决方案填写人提示、计算每日工时、一键复制解决的 bug、解决指派 bug 强制填写工时、Bug 点击在新标签页打开
+// @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
 // @downloadURL https://update.greasyfork.org/scripts/502308/OS-EASY%20%E4%B8%93%E5%B1%9E%E7%A6%85%E9%81%93%E6%A0%87%E8%AE%B0%E5%8A%A9%E6%89%8B.user.js
 // @updateURL https://update.greasyfork.org/scripts/502308/OS-EASY%20%E4%B8%93%E5%B1%9E%E7%A6%85%E9%81%93%E6%A0%87%E8%AE%B0%E5%8A%A9%E6%89%8B.meta.js
 // ==/UserScript==
 
 (() => {
   $.noConflict(true)(document).ready(async ($) => {
+      // 面板策略管理
+      const panelStrategies = {
+        strategies: {},
+        
+        register(name, strategy) {
+          if (!strategy.title || !strategy.render) {
+            console.error('Strategy must have title and render function');
+            return;
+          }
+          this.strategies[name] = strategy;
+        },
+
+        getAll() {
+          return this.strategies;
+        },
+
+        get(name) {
+          return this.strategies[name];
+        }
+      };
+
       // 初始化
       await initialize();
 
@@ -52,6 +73,106 @@
               else return;
           }
           $("td.text-left a").attr('target', '_blank');
+          
+          // 添加悬浮球和面板样式
+          GM_addStyle(`
+              .zm-float-ball {
+                  position: fixed;
+                  left: 105px;
+                  top: 4px;
+                  width: 36px;
+                  height: 36px;
+                  background: #1890ff;
+                  border-radius: 50%;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  cursor: pointer;
+                  z-index: 9999;
+                  transition: all 0.3s;
+              }
+              .zm-float-ball::after {
+                  content: '';
+                  position: absolute;
+                  width: 100%;
+                  height: 100%;
+                  border-radius: 50%;
+                  border: 2px solid #1890ff;
+                  animation: ripple 1.5s ease-out infinite;
+              }
+              @keyframes ripple {
+                  0% {
+                      transform: scale(1);
+                      opacity: 0.8;
+                  }
+                  100% {
+                      transform: scale(1.5);
+                      opacity: 0;
+                  }
+              }
+              .zm-float-ball:hover {
+                  transform: scale(1.1);
+              }
+              .zm-float-ball i {
+                  color: white;
+                  font-size: 24px;
+              }
+              .zm-panel {
+                  position: fixed;
+                  right: 80px;
+                  top: 50%;
+                  transform: translateY(-50%);
+                  width: 300px;
+                  background: white;
+                  border-radius: 8px;
+                  box-shadow: 0 3px 6px -4px rgba(0,0,0,.12), 0 6px 16px 0 rgba(0,0,0,.08);
+                  z-index: 9998;
+                  display: none;
+              }
+              .zm-panel-header {
+                  padding: 12px 16px;
+                  border-bottom: 1px solid #f0f0f0;
+                  font-weight: bold;
+              }
+              .zm-panel-content {
+                  max-height: 400px;
+                  overflow-y: auto;
+                  scrollbar-width: thin;
+                  scrollbar-color: rgba(0,0,0,.2) transparent;
+              }
+              .zm-panel-content::-webkit-scrollbar {
+                  width: 6px;
+              }
+              .zm-panel-content::-webkit-scrollbar-track {
+                  background: transparent;
+              }
+              .zm-panel-content::-webkit-scrollbar-thumb {
+                  background-color: rgba(0,0,0,.2);
+                  border-radius: 3px;
+                  border: none;
+              }
+              .zm-panel-content::-webkit-scrollbar-thumb:hover {
+                  background-color: rgba(0,0,0,.3);
+              }
+              .zm-panel-item {
+                  padding: 12px 16px;
+                  border-bottom: 1px solid #f0f0f0;
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+              }
+              .zm-panel-item:hover {
+                  background: #f5f5f5;
+              }
+              .zm-hours {
+                  color: #ff4d4f;
+                  font-weight: bold;
+              }
+          `);
+
+          // 创建悬浮球和面板
+          createFloatBall();
       }
 
       // 设置通用的点击事件监听器
@@ -311,6 +432,9 @@
             setupBugEffortPage()
           }
           setupLeftMenu()
+          analyzeWorkHours().then(res => {
+            console.log(res)
+          })
       }
 
       async function setupLeftMenu() {
@@ -486,6 +610,62 @@
           return data[type] ? `${type}<span style="color: #8e8e8e;">（填写人：${data[type]}）</span>` : type;
       }
 
+      // 设置Cookie 某些页面需要修改Cookie中的分页和页数才能查询生效
+      function setCookie(name, value, options = { path: '/' }) {
+        let cookie = `${name}=${encodeURIComponent(value)}`
+        
+        if (options.path) cookie += `; path=${options.path}`
+        if (options.domain) cookie += `; domain=${options.domain}`
+        if (options.expires) cookie += `; expires=${options.expires.toUTCString()}`
+        if (options.maxAge) cookie += `; max-age=${options.maxAge}`
+        if (options.secure) cookie += `; secure`
+        if (options.sameSite) cookie += `; samesite=${options.sameSite}`
+        
+        document.cookie = cookie
+      }
+      
+      // 获取工作日工时是否不足
+      async function analyzeWorkHours() {
+        // 设置分页
+        setCookie('pagerMyEffort', 500);
+        
+        // 获取数据
+        const response = await fetch('http://172.16.203.14:2980/my-effort-all-date_desc-1000000-500-1.json');
+        const rawData = await response.json();
+        const data = JSON.parse(rawData.data);
+        const efforts = data.efforts;
+        
+        // 获取日期范围
+        const startDate = new Date(efforts[efforts.length - 1].date);
+        const endDate = new Date(efforts[0].date);
+        
+        // 获取周期内的工作日
+        const workdays = workdayCn.getWorkdaysBetween(startDate, endDate);
+        
+        // 计算每天的工时
+        const dailyHours = new Map();
+        efforts.forEach(effort => {
+            const date = effort.date;
+            const hours = parseFloat(effort.consumed);
+            dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
+        });
+        
+        // 找出工时不足的日期并按时间逆序排序
+        const insufficientDays = workdays
+            .map(date => date.toISOString().split('T')[0])
+            .filter(date => {
+                const hours = dailyHours.get(date) || 0;
+                return hours < 8;
+            })
+            .map(date => ({
+                date,
+                hours: dailyHours.get(date) || 0
+            }))
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        return insufficientDays;
+    }
+
       // 生成处理类型选择器
       async function generatorResolveType() {
           const element = await waitForContentInContainer('body', '.modal-trigger.modal-scroll-inside .modal-dialog');
@@ -551,5 +731,594 @@
           const decoder = new TextDecoder(document.characterSet);
           return new DOMParser().parseFromString(decoder.decode(arrayBuffer), 'text/html');
       }
+
+      // 修改面板创建代码
+      function createFloatBall() {
+          // 检查是否在登录页面
+          if (window.location.pathname === '/user-login.html') {
+              return;
+          }
+
+          // 检查是否在iframe中
+          if (window.self !== window.top) {
+              return;
+          }
+
+          // 检查是否已存在悬浮球
+          if ($('.zm-float-ball').length > 0) {
+              return;
+          }
+
+          // 添加拖动相关样式
+          GM_addStyle(`
+              .zm-float-ball {
+                  user-select: none;
+                  touch-action: none;
+                  transition: all 0.3s;
+                  z-index: 9999;
+              }
+              .zm-float-ball.dragging {
+                  transition: none;
+                  opacity: 0.8;
+              }
+              .zm-panel {
+                  z-index: 9998;
+              }
+          `);
+
+          const floatBall = $(`
+              <div class="zm-float-ball">
+                  <i class="icon icon-zentao"></i>
+              </div>
+          `).appendTo('body');
+
+          // 创建带标签页的面板
+          const panel = $(`
+            <div class="zm-panel">
+              <div class="zm-panel-header">
+                <div class="zm-panel-tabs">
+                  <span class="zm-panel-tab active" data-strategy="workHours">
+                    <i class="icon icon-time"></i>工时提醒
+                  </span>
+                  <span class="zm-panel-tab" data-strategy="myBugs">
+                    <i class="icon icon-bug"></i>Bug统计
+                  </span>
+                </div>
+                <i class="icon icon-refresh" style="float: right; cursor: pointer; font-size: 14px;"></i>
+              </div>
+              <div class="zm-panel-content"></div>
+            </div>
+          `).appendTo('body');
+
+          // 从 localStorage 获取上次选中的面板
+          let currentStrategy = localStorage.getItem('zm-panel-active') || 'workHours';
+          
+          // 初始化激活状态
+          panel.find('.zm-panel-tab').removeClass('active');
+          panel.find(`[data-strategy="${currentStrategy}"]`).addClass('active');
+
+          // 标签切换逻辑
+          panel.find('.zm-panel-tab').click(async function() {
+            const strategyName = $(this).data('strategy');
+            if (strategyName === currentStrategy) return;
+
+            panel.find('.zm-panel-tab').removeClass('active');
+            $(this).addClass('active');
+            currentStrategy = strategyName;
+            
+            // 保存当前选中的面板到 localStorage
+            localStorage.setItem('zm-panel-active', currentStrategy);
+
+            const strategy = panelStrategies.get(strategyName);
+            await strategy.render(panel.find('.zm-panel-content'));
+          });
+
+          // 修改刷新按钮事件
+          panel.find('.icon-refresh').click(async function(e) {
+            e.stopPropagation();
+            
+            const refreshIcon = $(this);
+            // 添加旋转动画
+            refreshIcon.css({
+              'transform': 'rotate(360deg)',
+              'transition': 'transform 0.5s'
+            });
+            
+            // 获取当前激活的策略并刷新
+            const strategy = panelStrategies.get(currentStrategy);
+            await strategy.render(panel.find('.zm-panel-content'));
+            
+            // 重置旋转动画
+            setTimeout(() => {
+              refreshIcon.css({
+                'transform': 'rotate(0deg)',
+                'transition': 'none'
+              });
+            }, 500);
+          });
+
+          // 修改拖动相关变量
+          let isDragging = false;
+          let startX, startY;
+          let initialLeft, initialTop;
+          const margin = 20;
+          let hasDragged = false;
+
+          // 更新位置的动画函数
+          function updatePosition(mouseX, mouseY) {
+              if (!isDragging) return;
+
+              // 计算位移
+              const deltaX = mouseX - startX;
+              const deltaY = mouseY - startY;
+              
+              // 计算新位置
+              let left = initialLeft + deltaX;
+              let top = initialTop + deltaY;
+              
+              // 边界限制
+              const maxX = window.innerWidth - floatBall.outerWidth();
+              const maxY = window.innerHeight - floatBall.outerHeight();
+              
+              left = Math.max(0, Math.min(left, maxX));
+              top = Math.max(0, Math.min(top, maxY));
+              
+              floatBall.css({
+                  left: left + 'px',
+                  top: top + 'px',
+                  right: 'auto'
+              });
+
+              // 实时更新面板位置
+              if (panel.is(':visible')) {
+                  updatePanelPosition();
+              }
+          }
+
+          // 修改 pointer events 处理
+          floatBall[0].addEventListener('pointerdown', function(e) {
+              isDragging = true;
+              hasDragged = false;
+              floatBall.addClass('dragging');
+              
+              // 立即隐藏面板，不使用动画
+              if (panel.is(':visible')) {
+                  panel.hide();
+                  $('.zm-panel-content').empty();
+              }
+              
+              this.setPointerCapture(e.pointerId);
+              
+              // 记录初始位置
+              startX = e.clientX;
+              startY = e.clientY;
+              const rect = floatBall[0].getBoundingClientRect();
+              initialLeft = rect.left;
+              initialTop = rect.top;
+              
+              e.preventDefault();
+          });
+
+          floatBall[0].addEventListener('pointermove', function(e) {
+              if (isDragging) {
+                  hasDragged = true;
+                  updatePosition(e.clientX, e.clientY);
+                  e.preventDefault();
+              }
+          });
+
+          floatBall[0].addEventListener('pointerup', function(e) {
+              if (isDragging) {
+                  isDragging = false;
+                  floatBall.removeClass('dragging');
+                  this.releasePointerCapture(e.pointerId);
+              }
+          });
+
+          // 防止文本选择和其他默认行为
+          $(document).on('selectstart dragstart', function(e) {
+              if (isDragging) {
+                  e.preventDefault();
+                  return false;
+              }
+          });
+
+          // 添加一个变量来追踪面板状态
+          let isPanelVisible = false;
+
+          // 修改点击悬浮球显示面板的代码
+          floatBall.click(async function(e) {
+              if (hasDragged) return;
+              
+              e.stopPropagation();
+              
+              if (!isPanelVisible) {
+                  panel.css('opacity', 0).show();
+                  updatePanelPosition();
+                  panel.animate({ opacity: 1 }, 200);
+                  isPanelVisible = true;
+                  
+                  // 使用当前激活的策略渲染内容
+                  const strategy = panelStrategies.get(currentStrategy);
+                  await strategy.render(panel.find('.zm-panel-content'));
+              } else {
+                  panel.fadeOut(200, function() {
+                      $('.zm-panel-content').empty();
+                      isPanelVisible = false;
+                  });
+              }
+          });
+
+          // 更新面板位置函数优化
+          function updatePanelPosition() {
+              const ballRect = floatBall[0].getBoundingClientRect();
+              const panelWidth = panel.outerWidth();
+              const panelHeight = panel.outerHeight();
+              const windowWidth = window.innerWidth;
+              const windowHeight = window.innerHeight;
+              
+              // 计算各个方向的可用空间
+              const leftSpace = ballRect.left;
+              const rightSpace = windowWidth - ballRect.right;
+              const topSpace = ballRect.top;
+              const bottomSpace = windowHeight - ballRect.bottom;
+              
+              // 水平位置计算
+              let left;
+              // 优先选择空间较大的左右侧
+              if (leftSpace >= rightSpace && leftSpace >= panelWidth + 10) {
+                  // 左侧空间足够
+                  left = ballRect.left - panelWidth - 10;
+              } else if (rightSpace >= panelWidth + 10) {
+                  // 右侧空间足够
+                  left = ballRect.right + 10;
+              } else {
+                  // 两侧空间都不够，强制靠左或靠右
+                  left = leftSpace > rightSpace ? 10 : windowWidth - panelWidth - 10;
+              }
+              
+              // 垂直位置计算
+              let top;
+              // 优先考虑上下空间是否足够显示完整面板
+              if (bottomSpace >= panelHeight + 10) {
+                  // 底部空间足够
+                  top = Math.min(ballRect.top, windowHeight - panelHeight - 10);
+              } else if (topSpace >= panelHeight + 10) {
+                  // 顶部空间足够
+                  top = Math.max(10, ballRect.bottom - panelHeight);
+              } else {
+                  // 上下空间都不够，强制靠上或靠下
+                  top = topSpace > bottomSpace ? 10 : windowHeight - panelHeight - 10;
+              }
+              
+              panel.css({
+                  left: left + 'px',
+                  top: top + 'px',
+                  transform: 'none'
+              });
+          }
+
+          // 监听悬浮球位置变化
+          const observer = new MutationObserver(() => {
+              if (panel.is(':visible')) {
+                  updatePanelPosition();
+              }
+          });
+          
+          observer.observe(floatBall[0], {
+              attributes: true,
+              attributeFilter: ['style']
+          });
+
+          // 点击其他区域隐藏面板时也需要更新状态
+          $(document).click(function(e) {
+              if (!$(e.target).closest('.zm-panel').length) {
+                  panel.fadeOut(200, function() {
+                      $('.zm-panel-content').empty();
+                      isPanelVisible = false;
+                  });
+              }
+          });
+      }
+
+      // 更新面板内容
+      function updatePanel(insufficientDays) {
+          const content = $('.zm-panel-content');
+          content.empty();
+          
+          if (insufficientDays.length === 0) {
+              content.append('<div class="zm-panel-item">所有工作日工时已填写完整 👍</div>');
+              return;
+          }
+
+          insufficientDays.forEach(day => {
+              content.append(`
+                  <div class="zm-panel-item">
+                      <span>${day.date}</span>
+                      <span class="zm-hours">${day.hours}h / 8h</span>
+                  </div>
+              `);
+          });
+      }
+
+      // 数据获取策略
+      const dataStrategies = {
+        strategies: {},
+        
+        register(name, strategy) {
+          if (!strategy.fetch) {
+            console.error('Data strategy must have fetch function');
+            return;
+          }
+          this.strategies[name] = strategy;
+        },
+
+        async fetch(name, ...args) {
+          const strategy = this.strategies[name];
+          if (!strategy) {
+            console.error(`Data strategy ${name} not found`);
+            return null;
+          }
+          return await strategy.fetch(...args);
+        }
+      };
+
+      // 注册工时数据获取策略
+      dataStrategies.register('workHours', {
+        async fetch() {
+          // 设置分页
+          setCookie('pagerMyEffort', 500);
+          
+          // 获取数据
+          const response = await fetch('http://172.16.203.14:2980/my-effort-all-date_desc-1000000-500-1.json');
+          const rawData = await response.json();
+          const data = JSON.parse(rawData.data);
+          const efforts = data.efforts;
+          
+          // 获取日期范围
+          const startDate = new Date(efforts[efforts.length - 1].date);
+          const endDate = new Date(efforts[0].date);
+          
+          // 获取周期内的工作日
+          const workdays = workdayCn.getWorkdaysBetween(startDate, endDate);
+          
+          // 计算每天的工时
+          const dailyHours = new Map();
+          efforts.forEach(effort => {
+              const date = effort.date;
+              const hours = parseFloat(effort.consumed);
+              dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
+          });
+          
+          // 找出工时不足的日期并按时间逆序排序
+          return workdays
+            .map(date => date.toISOString().split('T')[0])
+            .filter(date => {
+                const hours = dailyHours.get(date) || 0;
+                return hours < 8;
+            })
+            .map(date => ({
+                date,
+                hours: dailyHours.get(date) || 0
+            }))
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
+      });
+
+      // 注册Bug数据获取策略
+      dataStrategies.register('bugs', {
+        async fetch() {
+          const response = await fetch('/my-work-bug.html');
+          const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+          return Array.from(doc.querySelectorAll('tr')).slice(1).map(tr => ({
+            id: tr.cells[0].textContent.trim(),
+            title: tr.cells[4].textContent.trim(),
+            status: tr.cells[6].textContent.trim()
+          }));
+        }
+      });
+
+      // 修改面板策略的注册,使用数据策略
+      panelStrategies.register('workHours', {
+        title: '工时提醒',
+        icon: 'icon-time',
+        async render(content) {
+          try {
+            content.html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
+            
+            const insufficientDays = await dataStrategies.fetch('workHours');
+            
+            content.empty();
+            if (insufficientDays.length === 0) {
+              content.append('<div class="zm-panel-item">所有工作日工时已填写完整 👍</div>');
+              return;
+            }
+
+            insufficientDays.forEach(day => {
+              content.append(`
+                <div class="zm-panel-item">
+                  <span>${day.date}</span>
+                  <span class="zm-hours">${day.hours}h / 8h</span>
+                </div>
+              `);
+            });
+          } catch (err) {
+            content.html(`<div class="zm-panel-item error">加载失败: ${err.message}</div>`);
+          }
+        }
+      });
+
+      // Bug统计功能
+      panelStrategies.register('myBugs', {
+        title: 'Bug统计',
+        icon: 'icon-bug',
+        async render(content) {
+          try {
+            content.html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
+            
+            const bugs = await dataStrategies.fetch('bugs');
+            
+            content.empty();
+            if (bugs.length === 0) {
+              content.append('<div class="zm-panel-item">暂无Bug</div>');
+              return;
+            }
+
+            // 按状态分组
+            const bugsByStatus = bugs.reduce((acc, bug) => {
+              if (!acc[bug.status]) {
+                acc[bug.status] = [];
+              }
+              acc[bug.status].push(bug);
+              return acc;
+            }, {});
+
+            // 渲染每个状态组
+            Object.entries(bugsByStatus).forEach(([status, statusBugs]) => {
+              content.append(`
+                <div class="zm-panel-group">
+                  <div class="zm-panel-group-header">
+                    <span>${status}</span>
+                    <span class="zm-count">${statusBugs.length}</span>
+                  </div>
+                  ${statusBugs.map(bug => `
+                    <div class="zm-panel-item zm-bug-item" title="${bug.title}" data-bug-id="${bug.id}">
+                      <span class="zm-bug-id">#${bug.id}</span>
+                      <span class="zm-bug-title">${bug.title}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              `);
+            });
+
+            // 添加点击事件
+            content.find('.zm-bug-item').click(function() {
+              const bugId = $(this).data('bug-id');
+              window.open(`/bug-view-${bugId}.html`, '_blank');
+            });
+            
+          } catch (err) {
+            content.html(`<div class="zm-panel-item error">加载失败: ${err.message}</div>`);
+          }
+        }
+      });
+
+      // 添加错误样式
+      GM_addStyle(`
+        .zm-panel-item.error {
+          color: #ff4d4f;
+        }
+        
+        .zm-count {
+          font-weight: bold;
+          color: #1890ff;
+        }
+      `);
+
+      // 更新面板样式
+      GM_addStyle(`
+        .zm-panel-group {
+          margin-bottom: 12px;
+        }
+
+        .zm-panel-group:last-child {
+          margin-bottom: 0;
+        }
+
+        .zm-panel-group-header {
+          padding: 8px;
+          background: #f5f5f5;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-weight: bold;
+        }
+
+        .zm-bug-item {
+          padding: 6px 8px;
+          cursor: pointer;
+        }
+
+        .zm-bug-item:hover {
+          background: #f5f5f5;
+        }
+
+        .zm-bug-id {
+          color: #1890ff;
+          margin-right: 8px;
+          flex-shrink: 0;
+        }
+
+        .zm-bug-title {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex: 1;
+        }
+      `);
   });
 })();
+
+// 添加面板样式
+GM_addStyle(`
+  .zm-panel {
+    position: fixed;
+    width: 300px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    display: none;
+    z-index: 9999;
+  }
+
+  .zm-panel-header {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .zm-panel-tabs {
+    display: flex;
+    gap: 12px;
+  }
+
+  .zm-panel-tab {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.3s;
+    user-select: none;
+  }
+
+  .zm-panel-tab:hover {
+    background: rgba(0,0,0,0.05);
+  }
+
+  .zm-panel-tab.active {
+    background: #1890ff;
+    color: white;
+  }
+
+  .zm-panel-tab i {
+    margin-right: 4px;
+  }
+
+  .zm-panel-content {
+    padding: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .zm-panel-item {
+    padding: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .zm-panel-item:last-child {
+    border-bottom: none;
+  }
+`);
+
+

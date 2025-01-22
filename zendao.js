@@ -19,6 +19,7 @@
       // 面板策略管理
       const panelStrategies = {
         strategies: {},
+        currentStrategy: null,
         
         register(name, strategy) {
           if (!strategy.title || !strategy.render) {
@@ -26,6 +27,34 @@
             return;
           }
           this.strategies[name] = strategy;
+        },
+
+        async switchStrategy(name, content) {
+          // 取消之前策略的所有请求
+          requestManager.clear();
+          
+          // 更新当前策略
+          this.currentStrategy = name;
+          
+          // 清空内容并显示加载状态
+          content.empty().html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
+          
+          try {
+            const strategy = this.strategies[name];
+            const renderPromise = strategy.render(content);
+            
+            // 等待渲染完成
+            await renderPromise;
+            
+            // 如果在渲染过程中切换了策略，则不显示结果
+            if (this.currentStrategy !== name) {
+              content.empty();
+            }
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              content.html(`<div class="zm-panel-item error">加载失败: ${err.message}</div>`);
+            }
+          }
         },
 
         getAll() {
@@ -796,17 +825,16 @@
           // 标签切换逻辑
           panel.find('.zm-panel-tab').click(async function() {
             const strategyName = $(this).data('strategy');
-            if (strategyName === currentStrategy) return;
+            if (strategyName === panelStrategies.currentStrategy) return;
 
             panel.find('.zm-panel-tab').removeClass('active');
             $(this).addClass('active');
-            currentStrategy = strategyName;
             
             // 保存当前选中的面板到 localStorage
-            localStorage.setItem('zm-panel-active', currentStrategy);
+            localStorage.setItem('zm-panel-active', strategyName);
 
-            const strategy = panelStrategies.get(strategyName);
-            await strategy.render(panel.find('.zm-panel-content'));
+            // 使用新的切换方法
+            await panelStrategies.switchStrategy(strategyName, panel.find('.zm-panel-content'));
           });
 
           // 修改刷新按钮事件处理
@@ -1115,10 +1143,13 @@
                   const hours = dailyHours.get(date) || 0;
                   return hours < 8;
               })
-              .map(date => ({
+              .map(date => {
+                const hours = dailyHours.get(date)
+                return {
                   date,
-                  hours: dailyHours.get(date).toFixed(1) || 0
-              }))
+                  hours: hours ? hours.toFixed(1) : 0
+              }
+              })
               .sort((a, b) => new Date(b.date) - new Date(a.date));
           } catch (err) {
             if (err.name === 'AbortError') {
@@ -1261,13 +1292,14 @@
        class VirtualScroll {
          constructor(options) {
            const defaultOptions = {
-             itemHeight: 32,  // 默认固定高度
+             itemHeight: 32,
              visibleCount: 10,
              bufferSize: 5,
              container: null,
              data: [],
              renderItem: null,
-             className: ''
+             className: '',
+             maxHeight: 360 // 添加最大高度限制
            };
            
            this.options = { ...defaultOptions, ...options };
@@ -1275,10 +1307,11 @@
          }
 
          init() {
-           const { itemHeight, visibleCount, data, container, className } = this.options;
+           const { itemHeight, visibleCount, data, container, className, maxHeight } = this.options;
            
-           // 计算实际需要的高度
-           const actualHeight = Math.min(data.length, visibleCount) * itemHeight;
+           // 计算实际需要的高度，不超过maxHeight
+           const totalHeight = data.length * itemHeight;
+           const actualHeight = Math.min(totalHeight, maxHeight);
            
            this.$container = $(`
              <div class="zm-virtual-list ${className}" style="height: ${actualHeight}px; overflow-y: auto;">
@@ -1287,7 +1320,7 @@
            `);
            
            this.$virtualContent = this.$container.find('.zm-virtual-content');
-           this.$virtualContent.css('height', `${data.length * itemHeight}px`);
+           this.$virtualContent.css('height', `${totalHeight}px`);
            
            $(container).append(this.$container);
            
@@ -1360,7 +1393,8 @@
                  container: content,
                  data: insufficientDays,
                  className: 'work-hours',
-                 itemHeight: 48,  // 在这里传入期望的高度
+                 itemHeight: 48,
+                 maxHeight: 360, // 限制最大高度
                  renderItem: (day) => 
                    $('<div>').append(
                      $('<span>').text(day.date),
@@ -1449,7 +1483,7 @@
                    content.append(`
                      <div class="zm-bug-category">
                        <div class="zm-bug-category-title ${isExpanded ? 'expanded' : ''}" style="color: ${color}">
-                         <i class="icon icon-chevron-right"></i>
+                         <i class="icon icon-chevron-right ${isExpanded ? 'icon-rotate-90' : ''}"></i>
                          ${title} (${bugs[key].length})
                        </div>
                        <div class="zm-bug-list-${key}" style="display: ${isExpanded ? 'block' : 'none'}"></div>
@@ -1462,6 +1496,7 @@
                      className: 'bugs',
                      itemHeight: 32,
                      visibleCount: Math.min(bugs[key].length, 5),
+                     maxHeight: 200, // 限制每个分类的最大高度
                      renderItem: (bug) => {
                        // 根据时长确定颜色类
                        let colorClass = '';
@@ -1502,6 +1537,10 @@
                  $(this).toggleClass('expanded');
                  $(this).find('.icon').toggleClass('icon-rotate-90');
                  $(this).next('.zm-bug-list-' + $(this).parent().find('[class^="zm-bug-list-"]').attr('class').split('-')[3]).slideToggle(200);
+                 
+                 // 检查是否所有分类都已展开
+                 const allExpanded = content.find('.zm-bug-category-title.expanded').length === content.find('.zm-bug-category-title').length;
+                 content.find('.expand-all-btn').text(allExpanded ? '折叠全部' : '展开全部');
                });
 
                // 展开全部按钮事件处理
@@ -1590,15 +1629,15 @@
            }
            
            /* 添加鼠标悬停提示图标 */
-           .zm-bug-id::after {
+           .zm-bug-id::before {
              content: '🔗';
              font-size: 12px;
-             margin-left: 4px;
+             margin-right: 4px;
              opacity: 0;
              transition: opacity 0.2s;
            }
            
-           .zm-bug-id:hover::after {
+           .zm-bug-id:hover::before {
              opacity: 1;
            }
            

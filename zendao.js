@@ -758,7 +758,7 @@
       }
 
       // 修改面板创建代码
-      function createFloatBall() {
+      async function createFloatBall() {
           // 检查是否在登录页面
           if (window.location.pathname === '/user-login.html') {
               return;
@@ -825,6 +825,7 @@
           // 标签切换逻辑
           panel.find('.zm-panel-tab').click(async function() {
             const strategyName = $(this).data('strategy');
+            // 避免重复加载相同策略
             if (strategyName === panelStrategies.currentStrategy) return;
 
             panel.find('.zm-panel-tab').removeClass('active');
@@ -832,10 +833,14 @@
             
             // 保存当前选中的面板到 localStorage
             localStorage.setItem('zm-panel-active', strategyName);
+            currentStrategy = strategyName; // 更新当前策略
 
             // 使用新的切换方法
             await panelStrategies.switchStrategy(strategyName, panel.find('.zm-panel-content'));
           });
+
+          // 初始加载内容
+          await panelStrategies.switchStrategy(currentStrategy, panel.find('.zm-panel-content'));
 
           // 修改刷新按钮事件处理
           panel.find('.icon-refresh').click(

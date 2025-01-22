@@ -1149,11 +1149,11 @@
                   return hours < 8;
               })
               .map(date => {
-                const hours = dailyHours.get(date)
+                const hours = dailyHours.get(date);
                 return {
                   date,
-                  hours: hours ? hours.toFixed(1) : 0
-              }
+                  hours: hours ? Number(hours.toFixed(2)) : 0
+                }
               })
               .sort((a, b) => new Date(b.date) - new Date(a.date));
           } catch (err) {

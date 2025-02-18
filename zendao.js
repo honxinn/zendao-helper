@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.4.3
+// @version     1.4.4
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -499,8 +499,9 @@
               setupVersionBugPage()
               setupResolvedByMeBuildPage()
           } else if (/effort-createForObject-bug-\d+.html/.test(path)) {
-            setupBugEffortPage()
-          }
+              setupBugEffortPage()
+          } else if (/effort-createForObject-task-\d+.html/.test(path)) {
+              setupTaskEffortPage()
           setupLeftMenu()
       }
 
@@ -592,6 +593,15 @@
         let bug_id=$("#mainContent > div > h2 > span.label.label-id")[0].innerHTML
         $(".form-control")[1].value = 1
         $(".form-control")[2].value = "处理BUG: " + bug_id
+      }
+
+        /**
+       * 任务工时窗口默认填充1h完成任务
+       */
+      function setupTaskEffortPage() {
+        // 自动填任务内容
+        let task_name=$("#mainContent > div > h2 > span:nth-child(2)")[0].innerHTML
+        $(".form-control")[3].value = "完成任务: " + task_name
       }
 
       // 根据时间范围生成字符串

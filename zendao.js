@@ -493,6 +493,8 @@
       function handleDefaultPath(path) {
           if (/bug-view-\d+\.html/.test(path)) {
               setupBugDetailPage();
+          } else if (/story-view-\d+.html/.test(path)) {
+              setupStoryDetailPage();
           } else if (/resolvedbyme/.test(path)) {
               setupResolvedByMePage();
           } else if (/build-view-\d+.*\.html/.test(path)) {
@@ -531,6 +533,15 @@
               GM_setClipboard(`🔨bug(${$(this).text().trim()}): ${$(this).next().text().trim().replace(/【.+】(【.+】)*(-)*/, '')}`);
           }).attr('title', '点击复制 Bug').css({ cursor: 'pointer' });
           enforceEffortLogging();
+      }
+
+      // 设置需求详情页功能
+      function setupStoryDetailPage() {
+          $('.label.label-id').on('click', function () {
+              GM_setClipboard(`🔥feat(${$(this).text().trim()}): ${$(this).next().text().trim().replace(/(【.+?】)(【.+?】)*(-)*(.+)/, '$1$2$4')}
+
+需求链接: [【${$(this).text().trim()}】${$(this).next().text().trim()}](${location.href})`);
+          }).attr('title', '点击需求提交信息').css({cursor: 'pointer'});
       }
 
       // 强制填写工时

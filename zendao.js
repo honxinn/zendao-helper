@@ -530,8 +530,10 @@
       // 设置Bug详情页功能
       function setupBugDetailPage() {
           $('.label.label-id').on('click', function () {
-              GM_setClipboard(`🔨bug(${$(this).text().trim()}): ${$(this).next().text().trim().replace(/【.+】(【.+】)*(-)*/, '')}`);
-          }).attr('title', '点击复制 Bug').css({ cursor: 'pointer' });
+              GM_setClipboard(`🔨bug(${$(this).text().trim()}): ${$(this).next().text().trim().replace(/【.+】(【.+】)*(-)*/, '')}
+
+禅道BUG链接: [【${$(this).text().trim()}】${$(this).next().text().trim()}](${location.href})`);
+          }).attr('title', '点击复制Bug提交信息').css({cursor: 'pointer'});
           enforceEffortLogging();
       }
 

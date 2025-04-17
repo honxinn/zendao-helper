@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.4.6
+// @version     1.4.7
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -603,10 +603,31 @@
        * Bug填写工时窗口默认填充1h处理BUG
        */
       function setupBugEffortPage() {
-        // 自动填BUG工时、内容
-        let bug_id=$("#mainContent > div > h2 > span.label.label-id")[0].innerHTML
-        $(".form-control")[1].value = 1
-        $(".form-control")[2].value = "处理BUG: " + bug_id
+
+          function setWorkContent(event) {
+              console.log(event)
+              $(".form-control")[2].value = event.target.innerText
+          }
+
+          let bug_id = $("#mainContent > div > h2 > span.label.label-id")[0].innerHTML
+
+          let blank_div = $('#mainContent > form > div')[0]
+          console.log(blank_div)
+          blank_div.style.paddingTop = '0'
+          blank_div.innerHTML = `<p style="color: red">* 点击下方文案，可自动填充至第一行</p>
+<ul id="work_content">
+<li style="cursor: pointer">【解决内部BUG】处理BUG${bug_id}</li>
+<li style="margin-top: 10px; cursor: pointer">【协助他人处理BUG】BUG归属人<实际归属人/已离职>，处理BUG${bug_id}</li>
+<li style="margin-top: 10px; cursor: pointer">【协助他人】处理外部原因导致的BUG ${bug_id}</li>
+</ul>
+`
+          $("#work_content")[0].childNodes.forEach(function (item) {
+              item.onclick = setWorkContent;
+          })
+
+          // 自动填BUG工时、内容
+          $(".form-control")[1].value = 1
+          $(".form-control")[2].value = "【解决内部BUG】处理BUG" + bug_id
       }
 
         /**

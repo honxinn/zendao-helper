@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.4.7
+// @version     1.4.8
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -612,15 +612,21 @@
           let bug_id = $("#mainContent > div > h2 > span.label.label-id")[0].innerHTML
 
           let blank_div = $('#mainContent > form > div')[0]
-          console.log(blank_div)
-          blank_div.style.paddingTop = '0'
-          blank_div.innerHTML = `<p style="color: red">* 点击下方文案，可自动填充至第一行</p>
+          let content = `<div style="border-radius: 10px; background-color: #ccc; padding: 10px; margin-bottom: 10px"><p style="color: red">* 点击下方文案，可自动填充至第一行</p>
 <ul id="work_content">
 <li style="cursor: pointer">【解决内部BUG】处理BUG${bug_id}</li>
 <li style="margin-top: 10px; cursor: pointer">【协助他人处理BUG】BUG归属人<实际归属人/已离职>，处理BUG${bug_id}</li>
 <li style="margin-top: 10px; cursor: pointer">【协助他人】处理外部原因导致的BUG ${bug_id}</li>
 </ul>
+</div>
 `
+          console.log(blank_div)
+          if (blank_div) {
+          blank_div.style.paddingTop = '0'
+              blank_div.innerHTML = content
+          } else {
+              $(content).insertBefore('#mainContent > form > table:nth-child(2)')
+          }
           $("#work_content")[0].childNodes.forEach(function (item) {
               item.onclick = setWorkContent;
           })

@@ -1154,9 +1154,9 @@
             const controller = new AbortController();
             requestManager.register('workHours', controller);
             
-            setCookie('pagerMyEffort', 500);
+            setCookie('pagerMyEffort', 100);
             
-            const response = await fetch('/my-effort-all-date_desc-1000000-500-1.json', {
+            const response = await fetch('/my-effort-all-date_desc-1000000-100-1.json', {
               signal: controller.signal
             });
             const text = await response.text(); // 先获取文本响应

@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.5.0
+// @version     1.5.1
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -504,8 +504,104 @@
               setupBugEffortPage()
           } else if (/effort-createForObject-task-\d+.html/.test(path)) {
               setupTaskEffortPage()
-          }        
+          } else if (/my\//.test(path)) {
+            setupMyPageWorkHoursReminder()
+          }
           setupLeftMenu()
+      }
+
+      // 设置my页面工时提醒
+      async function setupMyPageWorkHoursReminder() {
+        try {
+          // 等待页面加载完成
+          await waitForContentInContainer('body', '.col-main');
+          
+          // 检查是否已存在提醒
+          if ($('.zm-work-hours-reminder').length > 0) {
+            return;
+          }
+          
+          // 获取本周工时数据
+          const weeklyData = await dataStrategies.fetch('weeklyWorkHours');
+          
+          if (weeklyData && weeklyData.hasInsufficientHours) {
+            // 创建提醒div
+            const reminderHtml = `
+              <div class="panel zm-work-hours-reminder" style="margin-bottom: 20px; border: 2px solid #ff4d4f; background: #fff2f0;">
+                <div class="panel-heading" style="background: #ff4d4f; color: white; padding: 10px 15px; font-weight: bold;">
+                  <i class="icon icon-exclamation-triangle"></i> 工时提醒
+                </div>
+                <div class="panel-body" style="padding: 15px;">
+                  <p style="margin: 0 0 10px 0; color: #ff4d4f; font-weight: bold;">
+                    ⚠️ 近7天工时未填满！检测时间范围：${weeklyData.weekRange.start} 至 ${weeklyData.weekRange.end}
+                  </p>
+                  <div style="margin-top: 10px;">
+                    <strong>未填满工时的日期：</strong>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+                      ${weeklyData.insufficientDays.map(day => 
+                        `<li style="color: #ff4d4f; display: flex;  align-items: center; margin-bottom: 5px;">
+                          <span>${day.date} - 已填写 ${day.hours}小时 / 需要8小时</span>
+                          <button class="btn btn-xs btn-default" style="margin-left: 10px;" onclick="removeWorkHoursReminder('${day.date}')" title="删除此提醒（如请假、调休等）">
+                            <i class="icon icon-close"></i>
+                          </button>
+                        </li>`
+                      ).join('')}
+                    </ul>
+                  </div>
+                  <div style="margin-top: 15px;">
+                    <a href="/effort-calendar.html" class="btn btn-primary btn-sm">
+                      <i class="icon icon-edit"></i> 立即填写工时
+                    </a>
+                    <button class="btn btn-default btn-sm" onclick="$(this).closest('.zm-work-hours-reminder').fadeOut()" style="margin-left: 10px;">
+                      <i class="icon icon-close"></i> 关闭提醒
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;
+            
+            // 插入到col-main的开头
+            $('.col-main').prepend(reminderHtml);
+            
+            console.log('(zm) 已在my页面添加工时提醒');
+          } else {
+            console.log('(zm) 本周工时已填满，无需提醒');
+          }
+        } catch (err) {
+          console.error('(zm) 设置my页面工时提醒失败:', err);
+        }
+      }
+
+      // 删除单个工时提醒的函数
+      function removeWorkHoursReminder(date) {
+        try {
+          // 从localStorage中获取已删除的日期列表
+          let removedDates = JSON.parse(localStorage.getItem('zm-removed-work-hours-dates') || '[]');
+          
+          // 添加当前日期到删除列表
+          if (!removedDates.includes(date)) {
+            removedDates.push(date);
+            localStorage.setItem('zm-removed-work-hours-dates', JSON.stringify(removedDates));
+          }
+          
+          // 从页面中移除对应的li元素
+          $(`li:contains('${date}')`).fadeOut(300, function() {
+            $(this).remove();
+            
+            // 检查是否还有其他未填满的日期
+            const remainingItems = $('.zm-work-hours-reminder li').length;
+            if (remainingItems === 0) {
+              // 如果没有其他项目了，隐藏整个提醒面板
+              $('.zm-work-hours-reminder').fadeOut(300, function() {
+                $(this).remove();
+              });
+            }
+          });
+          
+          console.log(`(zm) 已删除 ${date} 的工时提醒`);
+        } catch (err) {
+          console.error('(zm) 删除工时提醒失败:', err);
+        }
       }
 
       async function setupLeftMenu() {
@@ -1301,12 +1397,15 @@
                 dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
             });
             
-            // 找出工时不足的日期并按时间逆序排序
+            // 获取用户已删除的日期列表
+            const removedDates = JSON.parse(localStorage.getItem('zm-removed-work-hours-dates') || '[]');
+            
+            // 找出工时不足的日期并按时间逆序排序（排除用户已删除的日期）
             return workdays
               .map(date => date.toISOString().split('T')[0])
               .filter(date => {
                   const hours = dailyHours.get(date) || 0;
-                  return hours < 8;
+                  return hours < 8 && !removedDates.includes(date);
               })
               .map(date => {
                 const hours = dailyHours.get(date);
@@ -1325,6 +1424,112 @@
             throw err;
           } finally {
             requestManager.requests.delete('workHours');
+          }
+        }
+      });
+
+      // 添加本周工时检测策略
+      dataStrategies.register('weeklyWorkHours', {
+        async fetch() {
+          try {
+            const controller = new AbortController();
+            requestManager.register('weeklyWorkHours', controller);
+            
+            setCookie('pagerMyEffort', 100);
+            
+            const response = await fetch('/my-effort-all-date_desc-1000000-100-1.json', {
+              signal: controller.signal
+            });
+            const text = await response.text();
+            
+            let rawData;
+            try {
+              rawData = JSON.parse(text);
+            } catch (e) {
+              throw new Error('Invalid JSON response');
+            }
+            
+            if (!rawData.data) {
+              throw new Error('Invalid data format');
+            }
+            
+            const data = JSON.parse(rawData.data);
+            const efforts = data.efforts;
+            
+            // 计算近7天工作日（包含当天）
+            const today = new Date();
+            const currentDay = today.getDay(); // 0=周日, 1=周一, ..., 6=周六
+            
+            // 获取近7天的工作日
+            const workdays = [];
+            let workdayCount = 0;
+            
+            // 从今天开始往前查找，直到找到7个工作日
+            for (let i = 1; workdayCount < 7; i++) {
+              const currentDate = new Date(today);
+              currentDate.setDate(today.getDate() - i);
+              
+              if (workdayCn.isWorkday(currentDate)) {
+                workdays.unshift(currentDate); // 添加到数组开头，保持时间顺序
+                workdayCount++;
+              }
+            }
+            
+            // 获取开始和结束日期
+            const startDate = workdays[0];
+            const endDate = workdays[workdays.length - 1];
+            
+            // 调试信息
+            console.log('(zm) 近7天工作日计算调试:', {
+              today: today.toISOString().split('T')[0],
+              currentDay: currentDay,
+              startDate: startDate.toISOString().split('T')[0],
+              endDate: endDate.toISOString().split('T')[0],
+              workdays: workdays.map(d => d.toISOString().split('T')[0])
+            });
+            
+            // 使用计算出的工作日范围
+            const weekWorkdays = workdays;
+            
+            // 计算每天的工时
+            const dailyHours = new Map();
+            efforts.forEach(effort => {
+                const date = effort.date;
+                const hours = parseFloat(effort.consumed);
+                dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
+            });
+            
+            // 获取用户已删除的日期列表
+            const removedDates = JSON.parse(localStorage.getItem('zm-removed-work-hours-dates') || '[]');
+            
+            // 检查本周是否有工时不足的日期（排除用户已删除的日期）
+            const insufficientDays = weekWorkdays
+              .map(date => date.toISOString().split('T')[0])
+              .filter(date => {
+                  const hours = dailyHours.get(date) || 0;
+                  return hours < 8 && !removedDates.includes(date);
+              });
+            
+            return {
+              hasInsufficientHours: insufficientDays.length > 0,
+              insufficientDays: insufficientDays.map(date => ({
+                date,
+                hours: dailyHours.get(date) || 0
+              })),
+              weekRange: {
+                start: startDate.toISOString().split('T')[0],
+                end: endDate.toISOString().split('T')[0]
+              }
+            };
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              console.log('Weekly work hours request aborted');
+              return { hasInsufficientHours: false, insufficientDays: [], weekRange: null };
+            }
+            console.error('Error fetching weekly work hours:', err);
+            throw err;
+          } finally {
+            requestManager.requests.delete('weeklyWorkHours');
           }
         }
       });

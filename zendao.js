@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     1.5.1
+// @version     2.0.0
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -514,7 +514,7 @@
       async function setupMyPageWorkHoursReminder() {
         try {
           // 等待页面加载完成
-          await waitForContentInContainer('body', '.col-main');
+          await waitForContentInContainer('body', '.col-side');
           
           // 检查是否已存在提醒
           if ($('.zm-work-hours-reminder').length > 0) {
@@ -523,7 +523,6 @@
           
           // 获取本周工时数据
           const weeklyData = await dataStrategies.fetch('weeklyWorkHours');
-          
           if (weeklyData && weeklyData.hasInsufficientHours) {
             // 创建提醒div
             const reminderHtml = `
@@ -539,9 +538,9 @@
                     <strong>未填满工时的日期：</strong>
                     <ul style="margin: 5px 0; padding-left: 20px;">
                       ${weeklyData.insufficientDays.map(day => 
-                        `<li style="color: #ff4d4f; display: flex;  align-items: center; margin-bottom: 5px;">
+                        `<li data-date="${day.date}" style="color: #ff4d4f; display: flex;  align-items: center; margin-bottom: 5px;">
                           <span>${day.date} - 已填写 ${day.hours}小时 / 需要8小时</span>
-                          <button class="btn btn-xs btn-default" style="margin-left: 10px;" onclick="removeWorkHoursReminder('${day.date}')" title="删除此提醒（如请假、调休等）">
+                          <button class="btn btn-xs btn-default zm-remove-reminder" data-date="${day.date}" style="margin-left: 10px;" title="删除此提醒（如请假、调休等）">
                             <i class="icon icon-close"></i>
                           </button>
                         </li>`
@@ -560,8 +559,14 @@
               </div>
             `;
             
-            // 插入到col-main的开头
-            $('.col-main').prepend(reminderHtml);
+            // 插入到col-side的开头
+            $('.col-side').prepend(reminderHtml);
+            
+            // 绑定删除按钮的点击事件
+            $('.zm-remove-reminder').on('click', function() {
+              const date = $(this).data('date');
+              removeWorkHoursReminder(date);
+            });
             
             console.log('(zm) 已在my页面添加工时提醒');
           } else {
@@ -584,8 +589,8 @@
             localStorage.setItem('zm-removed-work-hours-dates', JSON.stringify(removedDates));
           }
           
-          // 从页面中移除对应的li元素
-          $(`li:contains('${date}')`).fadeOut(300, function() {
+          // 使用data-date属性查找对应的li元素
+          $(`li[data-date="${date}"]`).fadeOut(300, function() {
             $(this).remove();
             
             // 检查是否还有其他未填满的日期

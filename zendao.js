@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.0.0
+// @version     2.0.1
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -101,6 +101,54 @@
           brown: '#FE9900',
           red: '#E74C3C'
       };
+
+      // 公共任务类型配置
+      const commonTaskTypes = {
+          development: {
+              title: '开发任务',
+              color: '#007bff',
+              items: [
+                  {name: '【立项项目开发任务】', desc: '版本开发计划中包含的所有任务，有明确的禅道需求'},
+                  {name: '【定制项目】', desc: '外部临时插入，以产品经理邮件为准，需要有禅道需求'},
+                  {name: '【专项开发任务】', desc: '没有明确需求的隐形专项开发任务，不在版本开发计划中体现，包含预研/设计/性能/稳定性/代码优化等'}
+              ]
+          },
+          management: {
+              title: '管理任务',
+              color: '#28a745',
+              items: [
+                  {name: '【培训任务】', desc: '参加内外部培训，技术纷享等'},
+                  {name: '【学习任务】', desc: '新员工熟悉工作内容，开发人员学习新的工作方法等'},
+                  {name: '【会议】', desc: '参加各种类型的会议，项目启动会、需求串讲会、计划评审会、项目周会、项目站会、项目复盘会、其他各类临时会议等'},
+                  {name: '【管理任务】', desc: '项目管理类工作（制定项目计划、跟踪项目进展等）、人员管理类工作（人员招聘、绩效考核等）、编写管理规范类文档'}
+              ]
+          },
+          support: {
+              title: '支持任务',
+              color: '#ffc107',
+              items: [
+                  {name: '【对外支持】', desc: '外部疑问解答，仅指导技术人员或排查疑问'},
+                  {name: '【协助他人】', desc: '内部产品测试过程中外部原因导致的产品BUG（需关联到禅道问题单），协助测试人员排查环境问题，帮助其他开发搭建环境等'}
+              ]
+          }
+      };
+
+      // 公共函数：插入内容到页面
+      function insertContentToPage(content) {
+          const blankDiv = $('#mainContent > form > div')[0];
+          if (blankDiv) {
+              blankDiv.style.paddingTop = '0';
+              blankDiv.innerHTML = content;
+          } else {
+              $(content).insertBefore('#mainContent > form > #objectTable');
+          }
+      }
+
+      // 公共函数：添加视觉反馈
+      function addVisualFeedback(element, color = '#d4edda') {
+          element.css('background-color', color);
+          setTimeout(() => element.css('background-color', 'white'), 300);
+      }
 
       // 设置通用的点击事件监听器
       setBodyClickListener();
@@ -506,6 +554,8 @@
               setupTaskEffortPage()
           } else if (/my\//.test(path)) {
             setupMyPageWorkHoursReminder()
+          } else if (/effort-batchCreate-\d+\.html/.test(path)) {
+            setupBatchEffortPage()
           }
           setupLeftMenu()
       }
@@ -700,6 +750,8 @@
         addCopyBtnOnVersionBugPage()
       }
 
+
+
       /**
        * Bug填写工时窗口默认填充1h处理BUG
        */
@@ -739,93 +791,50 @@
           };
 
           // 插入卡片
-          const blank_div = $('#mainContent > form > div')[0];
-          if (blank_div) {
-              blank_div.style.paddingTop = '0';
-              blank_div.innerHTML = createBugCard();
-          } else {
-              $(createBugCard()).insertBefore('#mainContent > form > #objectTable');
-          }
+          insertContentToPage(createBugCard());
 
           // 添加点击事件
           $("[data-content]").on('click', function () {
               const content = $(this).data('content');
               $(".form-control")[2].value = content;
-
-              // 视觉反馈
-              $(this).css('background-color', '#ffc7bf');
-              setTimeout(() => $(this).css('background-color', 'white'), 300);
+              addVisualFeedback($(this), '#ffc7bf');
           });
-
 
           // 默认填写工时为1小时
           $(".form-control")[1].value = 1;
           $(".form-control")[2].value = "【解决内部BUG】处理BUG " + bug_id;
       }
 
-
-        /**
+      /**
        * 任务工时窗口默认填充1h完成任务
        */
+      function setupTaskEffortPage() {
+          const taskName = $("#mainContent > div > h2 > span:nth-child(2)")[0].innerHTML;
 
-        function setupTaskEffortPage() {
-            // 任务类型配置
-            const taskTypes = {
-                development: {
-                    title: '开发任务',
-                    color: '#007bff',
-                    items: [
-                        {name: '【立项项目开发任务】', desc: '版本开发计划中包含的所有任务，有明确的禅道需求'},
-                        {name: '【定制项目】', desc: '外部临时插入，以产品经理邮件为准，需要有禅道需求'},
-                        {name: '【专项开发任务】', desc: '没有明确需求的隐形专项开发任务，不在版本开发计划中体现，包含预研/设计/性能/稳定性/代码优化等'}
-                    ]
-                },
-                management: {
-                    title: '管理任务',
-                    color: '#28a745',
-                    items: [
-                        {name: '【培训任务】', desc: '参加内外部培训，技术纷享等'},
-                        {name: '【学习任务】', desc: '新员工熟悉工作内容，开发人员学习新的工作方法等'},
-                        {name: '【会议】', desc: '参加各种类型的会议，项目启动会、需求串讲会、计划评审会、项目周会、项目站会、项目复盘会、其他各类临时会议等'},
-                        {name: '【管理任务】', desc: '项目管理类工作（制定项目计划、跟踪项目进展等）、人员管理类工作（人员招聘、绩效考核等）、编写管理规范类文档'}
-                    ]
-                },
-                support: {
-                    title: '支持任务',
-                    color: '#ffc107',
-                    items: [
-                        {name: '【对外支持】', desc: '外部疑问解答，仅指导技术人员或排查疑问'},
-                        {name: '【协助他人】', desc: '内部产品测试过程中外部原因导致的产品BUG（需关联到禅道问题单），协助测试人员排查环境问题，帮助其他开发搭建环境等'}
-                    ]
-                }
-            };
-
-            const taskName = $("#mainContent > div > h2 > span:nth-child(2)")[0].innerHTML;
-
-            // 生成任务卡片HTML
-            const createTaskCard = (category) => {
-                const items = category.items.map(item =>
-                    `<li style="margin-bottom: 8px; padding: 8px; background-color: white; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;" 
+          // 生成任务卡片HTML
+          const createTaskCard = (category) => {
+              const items = category.items.map(item =>
+                  `<li style="margin-bottom: 8px; padding: 8px; background-color: white; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;" 
                  title="${item.desc}" data-task="${item.name}${taskName}">
                 <div style="font-weight: bold; color: ${category.color};">${item.name}</div>
              </li>`
-                ).join('');
+              ).join('');
 
-                return `
+              return `
             <div style="flex: 1; background-color: #f8f9fa; border-radius: 8px;">
                 <div style="padding: 10px; background-color: ${category.color}; border-top-left-radius: 8px; border-top-right-radius: 8px; color: white; font-weight: bold;">
                     ${category.title}
                 </div>
                 <ul style="list-style: none; padding: 0; margin: 0;">${items}</ul>
             </div>`;
-            };
+          };
 
-            // 生成完整内容
-            const content = `
+          // 生成完整内容
+          const content = `
         <div style="border-radius: 10px; background-color: #ccc; padding: 10px; margin-bottom: 10px">
             <p style="color: red; margin-bottom: 15px">* 点击下方文案，可自动填充至第一行</p>
             <div style="display: flex; gap: 15px;">
-                ${Object.values(taskTypes).map(createTaskCard).join('')}
+                ${Object.values(commonTaskTypes).map(createTaskCard).join('')}
             </div>
         </div>
         <style>
@@ -836,25 +845,128 @@
             }
         </style>`;
 
-            // 插入内容
-            const blankDiv = $('#mainContent > form > div')[0];
-            if (blankDiv) {
-                blankDiv.style.paddingTop = '0';
-                blankDiv.innerHTML = content;
-            } else {
-                $(content).insertBefore('#mainContent > form > #objectTable');
-            }
+          // 插入内容
+          insertContentToPage(content);
 
-            // 添加点击事件
-            $("div[style*='flex: 1'] li").on('click', function () {
-                const fullText = $(this).attr('data-task');
-                $(".form-control")[3].value = fullText;
+          // 添加点击事件
+          $("div[style*='flex: 1'] li").on('click', function () {
+              const fullText = $(this).attr('data-task');
+              $(".form-control")[3].value = fullText;
+              addVisualFeedback($(this));
+          });
+      }
 
-                // 视觉反馈
-                $(this).css('background-color', '#d4edda');
-                setTimeout(() => $(this).css('background-color', 'white'), 300);
-            });
-        }
+      /**
+       * 批量工时创建页面功能增强
+       * 点击复制items里的name，处理路径/effort-batchCreate-\d+.html，拼接到id为effortBatchAddHeader的元素后面
+       */
+      function setupBatchEffortPage() {
+          // 使用公共任务类型配置
+
+          // 生成紧凑的任务类型选择器
+          const createCompactSelector = () => {
+              const categoryHtml = Object.values(commonTaskTypes).map(category => {
+                  const itemsHtml = category.items.map(item => 
+                      `<span class="zm-task-type-item" 
+                           data-task-name="${item.name}" 
+                           title="${item.desc}"
+                           style="display: inline-block; margin: 2px 4px; padding: 4px 8px; background: white; border: 1px solid ${category.color}; border-radius: 4px; cursor: pointer; font-size: 12px; color: ${category.color}; transition: all 0.2s;">
+                          ${item.name}
+                      </span>`
+                  ).join('');
+                  
+                  return `
+                      <div class="zm-task-category" style="margin-bottom: 8px;">
+                          <span class="zm-category-title" style="display: inline-block; margin-right: 8px; padding: 2px 8px; background: ${category.color}; color: white; border-radius: 3px; font-size: 11px; font-weight: bold;">
+                              ${category.title}
+                          </span>
+                          <div class="zm-category-items" style="display: inline-block;">
+                              ${itemsHtml}
+                          </div>
+                      </div>
+                  `;
+              }).join('');
+
+              return `
+                  <div class="zm-task-selector" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; font-size: 12px;">
+                      <div style="margin-bottom: 8px; color: #666; font-size: 11px;">
+                          <i class="icon icon-info-circle"></i> 点击下方任务类型可复制到剪贴板
+                      </div>
+                      ${categoryHtml}
+                  </div>
+              `;
+          };
+
+          // 生成完整内容
+          const content = createCompactSelector();
+
+          // 查找目标容器
+          const targetContainer = $('#effortBatchAddHeader');
+          if (targetContainer.length > 0) {
+              // 插入到目标容器后面
+              targetContainer.after(content);
+          } else {
+              // 如果找不到目标容器，尝试插入到页面开头
+              $('#mainContent').prepend(content);
+          }
+
+          // 添加点击事件 - 点击复制任务类型名称
+          $('.zm-task-type-item').on('click', function () {
+              const taskName = $(this).data('task-name');
+              if (taskName) {
+                  // 复制到剪贴板
+                  GM_setClipboard(taskName);
+                  
+                  // 视觉反馈
+                  const $this = $(this);
+                  $this.css({
+                      'background-color': '#d4edda',
+                      'border-color': '#28a745',
+                      'color': '#28a745',
+                      'transform': 'scale(1.05)'
+                  });
+                  
+                  setTimeout(() => {
+                      $this.css({
+                          'background-color': 'white',
+                          'border-color': $this.css('border-color').replace('#28a745', $this.attr('style').match(/border: 1px solid ([^;]+)/)?.[1] || '#007bff'),
+                          'color': $this.attr('style').match(/color: ([^;]+)/)?.[1] || '#007bff',
+                          'transform': 'scale(1)'
+                      });
+                  }, 300);
+                  
+                  // 显示复制成功提示
+                  const originalText = $this.text();
+                  $this.text('✅ 已复制').css('color', '#28a745');
+                  setTimeout(() => {
+                      $this.text(originalText).css('color', $this.attr('style').match(/color: ([^;]+)/)?.[1] || '#007bff');
+                  }, 1500);
+                  
+                  console.log('(zm) 已复制任务类型:', taskName);
+              }
+          });
+          
+          // 添加悬停效果
+          $('.zm-task-type-item').hover(
+              function() {
+                  $(this).css({
+                      'background-color': '#f8f9fa',
+                      'transform': 'translateY(-1px)',
+                      'box-shadow': '0 2px 4px rgba(0,0,0,0.1)'
+                  });
+              },
+              function() {
+                  $(this).css({
+                      'background-color': 'white',
+                      'transform': 'translateY(0)',
+                      'box-shadow': 'none'
+                  });
+              }
+          );
+          
+          console.log('(zm) 已设置批量工时创建页面功能');
+      }
+
       // 根据时间范围生成字符串
       function timeRangeStr(start, end = Date.now()) {
           start = new Date(start);

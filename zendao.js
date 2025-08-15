@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.0.1
+// @version     2.0.2
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -1427,26 +1427,6 @@
           });
       }
 
-      // 更新面板内容
-      function updatePanel(insufficientDays) {
-          const content = $('.zm-panel-content');
-          content.empty();
-          
-          if (insufficientDays.length === 0) {
-              content.append('<div class="zm-panel-item">所有工作日工时已填写完整 👍</div>');
-              return;
-          }
-
-          insufficientDays.forEach(day => {
-              content.append(`
-                  <div class="zm-panel-item">
-                      <span>${day.date}</span>
-                      <span class="zm-hours">${day.hours}h / 8h</span>
-                  </div>
-              `);
-          });
-      }
-
       // 数据获取策略
       const dataStrategies = {
         strategies: {},
@@ -1511,7 +1491,9 @@
             efforts.forEach(effort => {
                 const date = effort.date;
                 const hours = parseFloat(effort.consumed);
-                dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
+                const currentHours = dailyHours.get(date) || 0;
+                // 使用 toFixed(2) 确保精度，避免浮点数运算误差
+                dailyHours.set(date, parseFloat((currentHours + hours).toFixed(2)));
             });
             
             // 获取用户已删除的日期列表
@@ -1552,9 +1534,9 @@
             const controller = new AbortController();
             requestManager.register('weeklyWorkHours', controller);
             
-            setCookie('pagerMyEffort', 100);
+            setCookie('pagerMyEffort', 1000);
             
-            const response = await fetch('/my-effort-all-date_desc-1000000-100-1.json', {
+            const response = await fetch('/my-effort-all-date_desc-1000000-1000-1.json', {
               signal: controller.signal
             });
             const text = await response.text();
@@ -1613,7 +1595,9 @@
             efforts.forEach(effort => {
                 const date = effort.date;
                 const hours = parseFloat(effort.consumed);
-                dailyHours.set(date, (dailyHours.get(date) || 0) + hours);
+                const currentHours = dailyHours.get(date) || 0;
+                // 使用 toFixed(2) 确保精度，避免浮点数运算误差
+                dailyHours.set(date, parseFloat((currentHours + hours).toFixed(2)));
             });
             
             // 获取用户已删除的日期列表

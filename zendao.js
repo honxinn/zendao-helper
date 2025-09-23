@@ -999,11 +999,10 @@
           const assignedRe = new RegExp(`指派给.${userName}`);
           const dateRe = /(\d{4}-.+:\d{2})/;
 
-          let start, hasReactive = false, needEffort = false;
+          let start, hasReactive = false, needEffort = true;
           const assignmens = [], reactives = [];
 
           const current = $('#legendBasicInfo th:contains(当前指派) ~ td').text().trim();
-          needEffort = current.includes(userName);
 
           $(document).find('#actionbox li').each(function () {
               const text = $(this).text().trim();

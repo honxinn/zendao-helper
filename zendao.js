@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.0.2
+// @version     2.0.3
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具

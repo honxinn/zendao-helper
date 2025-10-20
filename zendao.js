@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.0.3
+// @version     2.0.4
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -416,7 +416,6 @@
           $(doc)
             .find('table tbody tr')
             .each(function () {
-              // console.log($(this).text())
               const text = $(this).text()
               if (objReg.test(text)) {
                 item.obj = text.replace(objReg, '').replace('\n', '').trim()
@@ -556,8 +555,11 @@
             setupMyPageWorkHoursReminder()
           } else if (/effort-batchCreate-\d+\.html/.test(path)) {
             setupBatchEffortPage()
+          } else if (!(/misc-checkUpdate|user-login|file-read|execution-task|my-work-task|effort-calendar|my-work-bug|effort-view|task-batchCreate|task-create|task-edit|task-view|task-cancel|user-deny-message-ajaxgetmessage/.test(path))) {
+            setupWorkHoursOverlay()
           }
           setupLeftMenu()
+          // 全局工时强提醒（除特定页面外）
       }
 
       // 设置my页面工时提醒
@@ -657,6 +659,393 @@
         } catch (err) {
           console.error('(zm) 删除工时提醒失败:', err);
         }
+      }
+
+      // 全屏强提醒遮罩
+      async function setupWorkHoursOverlay() {
+        try {
+          // 技术实验室不用强制填写工时
+          const userName = localStorage.getItem('zm-username');
+          const usernameList = ['曾丽星', '刘池', '张垚', '唐金丽', '孙俊', '羿中引', '阮泽林', '马佳伟', '刘海军', '郭可奇', '艾相葵', '陈小虎', '吴悠', '周姚']
+          if (usernameList.includes(userName)) {
+            console.log('(zm) 技术实验室不用强制填写工时');
+            return;
+          }
+
+          // 检查是否在排除的页面中
+          if (/misc-checkUpdate|user-login|file-read|execution-task|my-work-task|effort-calendar|my-work-bug|effort-view|task-batchCreate|task-create|task-edit|task-view|task-cancel|user-deny-message-ajaxgetmessage/.test(window.location.pathname)) {
+            console.log('(zm) 当前页面不需要工时强提醒');
+            return;
+          }
+
+          // // 检查今天是否是工作日的星期四
+          // const today = new Date();
+          // const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ..., 4=周四, ..., 6=周六
+          
+          // // 检查是否是星期四（4）且是工作日（非调休）
+          // if (dayOfWeek !== 4 || !workdayCn.isWorkday(today)) {
+          //   console.log('(zm) 今天不是工作日的星期四，不显示工时强提醒');
+          //   return;
+          // }
+
+          // console.log('(zm) 今天是工作日的星期四，检查工时情况');
+
+          // 检查是否已存在遮罩
+          if ($('.zm-work-hours-overlay').length > 0) {
+            return;
+          }
+
+          // 延迟执行，确保 dataStrategies 已初始化
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // 获取本周工时数据
+          const weeklyData = await dataStrategies.fetch('weeklyWorkHours');
+          if (weeklyData && weeklyData.hasInsufficientHours) {
+            // 创建全屏遮罩
+            const overlayHtml = `
+              <div class="zm-work-hours-overlay" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                z-index: 999999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+              ">
+                <div class="zm-work-hours-modal" style="
+                  background: white;
+                  border-radius: 8px;
+                  width: 100%;
+                  height: 90vh;
+                  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+                  display: flex;
+                  flex-direction: column;
+                  overflow: hidden;
+                ">
+                  <!-- 顶部紧凑区域 -->
+                  <div style="padding: 10px 20px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0; background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);">
+                    <!-- 标题和按钮行 -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                      <div style="display: flex; align-items: center;">
+                        <i class="icon icon-exclamation-sign" style="font-size: 24px; color: #ff4d4f; margin-right: 8px;"></i>
+                        <h2 style="margin: 0; color: #ff4d4f; font-size: 16px; font-weight: bold;">
+                          ⚠️ 工时填写提醒
+                        </h2>
+                        <span style="margin-left: 12px; color: #999; font-size: 11px;">
+                          ${weeklyData.weekRange.start} ~ ${weeklyData.weekRange.end}
+                        </span>
+                      </div>
+                      <button class="zm-close-overlay" style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        border: none;
+                        border-radius: 4px;
+                        padding: 6px 16px;
+                        cursor: pointer;
+                        font-size: 13px;
+                        color: white;
+                        font-weight: bold;
+                        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+                        transition: all 0.3s;
+                      " 
+                      onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.5)'" 
+                      onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 8px rgba(102, 126, 234, 0.4)'"
+                      title="填完后点这里">
+                        <i class="icon icon-refresh"></i> 刷新检查
+                      </button>
+                    </div>
+                    
+                    <!-- 提醒文字 -->
+                    <div style="margin-bottom: 10px; padding: 10px 12px; background: #fff2f0; border-left: 4px solid #ff4d4f; border-radius: 4px;">
+                      <p style="margin: 0 0 6px 0; color: #333; font-size: 13px; line-height: 1.6; font-weight: 500;">
+                        我知道你经常忘记填工时 😅，虽然右上角已经加了红色卡片提醒，但一忙起来就容易忽略。所以这次直接上全屏遮罩，逼着你先把工时填了再说！
+                      </p>
+                      <p style="margin: 0; color: #ff4d4f; font-size: 12px; font-weight: bold;">
+                        请不要尝试绕过弹框，因为会浪费你的开发时间。
+                      </p>
+                    </div>
+                    
+                    <!-- 信息行 -->
+                    <div style="display: flex; gap: 10px; align-items: center; font-size: 12px; line-height: 1.5; flex-wrap: wrap;">
+                      <span style="padding: 5px 10px; background: #fff2f0; color: #ff4d4f; border-radius: 4px; border-left: 3px solid #ff4d4f; white-space: nowrap; font-weight: 500;">
+                        <strong>未填满：</strong>${weeklyData.insufficientDays.map(day => `${day.date}(${day.hours}h)`).join('、')}
+                      </span>
+                      <span style="padding: 5px 10px; background: #e6f7ff; color: #1890ff; border-radius: 4px; border-left: 3px solid #1890ff; white-space: nowrap;">
+                        ⏳ 禅道页面加载慢，请耐心等待
+                      </span>
+                      <span style="padding: 5px 10px; background: #fff7e6; color: #d46b08; border-radius: 4px; border-left: 3px solid #ffa940; white-space: nowrap;">
+                        💡 填完后点右上角刷新检查
+                      </span>
+                      <span style="padding: 5px 10px; background: #ffe7ba; color: #d48806; border-radius: 4px; white-space: nowrap;">
+                        ⚠️ 不要在iframe内跳转
+                      </span>
+                      <span style="padding: 5px 10px; background: #fff7e6; color: #d46b08; border-radius: 4px; white-space: nowrap;">
+                        ⏰ 弹框只在星期四提醒
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <!-- Tab切换按钮 -->
+                  <div style="padding: 5px 20px; background: #fafafa; border-bottom: 1px solid #e0e0e0; flex-shrink: 0;">
+                    <div style="display: flex; gap: 6px;">
+                      <button class="zm-tab-btn" data-tab="calendar" style="
+                        padding: 4px 12px;
+                        border: 1.5px solid #ff4d4f;
+                        background: #ff4d4f;
+                        color: white;
+                        border-radius: 3px;
+                        cursor: pointer;
+                        font-size: 12px;
+                        font-weight: bold;
+                        transition: all 0.3s;
+                      ">
+                        <i class="icon icon-calendar"></i> 日历
+                      </button>
+                      <button class="zm-tab-btn" data-tab="task" style="
+                        padding: 4px 12px;
+                        border: 1.5px solid #d9d9d9;
+                        background: white;
+                        color: #666;
+                        border-radius: 3px;
+                        cursor: pointer;
+                        font-size: 12px;
+                        font-weight: bold;
+                        transition: all 0.3s;
+                      ">
+                        <i class="icon icon-list-alt"></i> 任务
+                      </button>
+                      <button class="zm-tab-btn" data-tab="execution" style="
+                        padding: 4px 12px;
+                        border: 1.5px solid #d9d9d9;
+                        background: white;
+                        color: #666;
+                        border-radius: 3px;
+                        cursor: pointer;
+                        font-size: 12px;
+                        font-weight: bold;
+                        transition: all 0.3s;
+                      ">
+                        <i class="icon icon-flag"></i> 执行
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- iframe容器 -->
+                  <div style="flex: 1; overflow: hidden; position: relative;">
+                    <iframe id="zm-calendar-iframe" src="/effort-calendar.html" style="
+                      width: 100%;
+                      height: 100%;
+                      border: none;
+                      display: block;
+                    "></iframe>
+                    <iframe id="zm-task-iframe" src="/my-work-task.html" style="
+                      width: 100%;
+                      height: 100%;
+                      border: none;
+                      display: none;
+                    "></iframe>
+                    <iframe id="zm-execution-iframe" src="/execution-task.html" style="
+                      width: 100%;
+                      height: 100%;
+                      border: none;
+                      display: none;
+                    "></iframe>
+                  </div>
+                </div>
+              </div>
+            `;
+            
+            // 插入到body中
+            $('body').append(overlayHtml);
+            
+            // Tab切换功能
+            $('.zm-tab-btn').on('click', function() {
+              const tab = $(this).data('tab');
+              
+              // 更新按钮样式
+              $('.zm-tab-btn').css({
+                'background': 'white',
+                'color': '#666',
+                'border-color': '#d9d9d9'
+              });
+              
+              // 根据不同tab设置不同颜色
+              let bgColor = '#1890ff';
+              if (tab === 'calendar') bgColor = '#ff4d4f';
+              else if (tab === 'task') bgColor = '#1890ff';
+              else if (tab === 'execution') bgColor = '#52c41a';
+              
+              $(this).css({
+                'background': bgColor,
+                'color': 'white',
+                'border-color': bgColor
+              });
+              
+              // 隐藏所有iframe
+              $('#zm-calendar-iframe, #zm-task-iframe, #zm-execution-iframe').hide();
+              
+              // 显示对应的iframe
+              if (tab === 'calendar') {
+                $('#zm-calendar-iframe').show();
+              } else if (tab === 'task') {
+                $('#zm-task-iframe').show();
+              } else if (tab === 'execution') {
+                $('#zm-execution-iframe').show();
+              }
+            });
+            
+            // 刷新检查按钮
+            $('.zm-close-overlay').on('click', function() {
+              location.reload();
+            });
+            
+            // 检查是否需要显示使用提示弹窗
+            const hasSeenTips = localStorage.getItem('zm-work-hours-tips-seen');
+            if (!hasSeenTips) {
+              showWorkHoursTipsModal();
+            }
+            
+            console.log('(zm) 已显示工时强提醒遮罩');
+          } else {
+            console.log('(zm) 本周工时已填满，无需强提醒');
+          }
+        } catch (err) {
+          console.error('(zm) 设置工时强提醒遮罩失败:', err);
+        }
+      }
+
+      // 显示工时提醒使用提示弹窗
+      function showWorkHoursTipsModal() {
+        const tipsModalHtml = `
+          <div class="zm-tips-modal-overlay" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+          ">
+            <div class="zm-tips-modal" style="
+              background: white;
+              border-radius: 12px;
+              padding: 0;
+              max-width: 500px;
+              width: 90%;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+              animation: slideUp 0.3s;
+              overflow: hidden;
+            ">
+              <!-- 头部 -->
+              <div style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 20px;
+                text-align: center;
+              ">
+                <i class="icon icon-info-sign" style="font-size: 48px; color: white;"></i>
+                <h2 style="margin: 10px 0 0 0; color: white; font-size: 22px; font-weight: bold;">
+                  📢 工时提醒使用说明
+                </h2>
+              </div>
+              
+              <!-- 内容 -->
+              <div style="padding: 25px;">
+                <div style="margin-bottom: 20px;">
+                  <h3 style="margin: 0 0 12px 0; color: #ff4d4f; font-size: 16px; display: flex; align-items: center;">
+                    <i class="icon icon-exclamation-triangle" style="margin-right: 8px;"></i>
+                    重要提醒
+                  </h3>
+                  <div style="background: #fff2f0; padding: 15px; border-radius: 6px; border-left: 4px solid #ff4d4f;">
+                    <p style="margin: 0 0 10px 0; color: #333; font-size: 14px; line-height: 1.8;">
+                      我知道你经常忘记填工时 😅，虽然右上角已经加了红色卡片提醒，但一忙起来就容易忽略。所以这次直接上<strong>全屏遮罩</strong>，逼着你先把工时填了再说！
+                    </p>
+                    <p style="margin: 0; color: #ff4d4f; font-size: 13px; font-weight: bold;">
+                      ⚠️ 请不要尝试绕过弹框，因为会浪费你的开发时间。
+                    </p>
+                  </div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                  <h3 style="margin: 0 0 12px 0; color: #1890ff; font-size: 16px; display: flex; align-items: center;">
+                    <i class="icon icon-lightbulb" style="margin-right: 8px;"></i>
+                    使用注意事项
+                  </h3>
+                  <ul style="margin: 0; padding-left: 20px; color: #333; font-size: 13px; line-height: 2;">
+                    <li><strong>弹框时机：</strong>只会在<span style="color: #52c41a; font-weight: bold;">工作日的星期四</span>提醒</li>
+                    <li><strong>填写方式：</strong>可在弹窗内切换"日历"、"任务"、"执行"三个页面</li>
+                    <li><strong style="color: #1890ff;">⏳ 页面加载：</strong>由于<span style="color: #1890ff; font-weight: bold;">禅道页面加载较慢</span>，iframe内容可能需要稍等一会才能显示，请耐心等待</li>
+                    <li><strong style="color: #ff4d4f;">⚠️ 重要：</strong>请<strong>不要在iframe内跳转到其他页面</strong>，否则会出现iframe套iframe的问题</li>
+                    <li><strong>完成后：</strong>填写完成后点击右上角<span style="color: #667eea; font-weight: bold;">"刷新检查"</span>按钮</li>
+                    <li><strong>异常恢复：</strong>如果出现iframe嵌套问题，点击"刷新检查"即可恢复</li>
+                  </ul>
+                </div>
+                
+                <div style="background: #fffbe6; padding: 12px; border-radius: 6px; border-left: 4px solid #faad14; margin-bottom: 20px;">
+                  <p style="margin: 0; color: #d48806; font-size: 12px; line-height: 1.6;">
+                    💡 <strong>温馨提示：</strong>此说明只会显示一次。如需再次查看，请清除浏览器localStorage中的"zm-work-hours-tips-seen"。
+                  </p>
+                </div>
+                
+                <!-- 按钮 -->
+                <div style="text-align: center;">
+                  <button class="zm-tips-confirm" style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border: none;
+                    border-radius: 6px;
+                    padding: 12px 40px;
+                    color: white;
+                    font-size: 15px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                    transition: all 0.3s;
+                  "
+                  onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.6)'"
+                  onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)'">
+                    <i class="icon icon-ok"></i> 我知道了，开始填写工时
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <style>
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUp {
+              from { 
+                opacity: 0;
+                transform: translateY(30px);
+              }
+              to { 
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+          </style>
+        `;
+        
+        $('body').append(tipsModalHtml);
+        
+        // 确认按钮点击事件
+        $('.zm-tips-confirm').on('click', function() {
+          // 保存到localStorage
+          localStorage.setItem('zm-work-hours-tips-seen', 'true');
+          // 移除弹窗
+          $('.zm-tips-modal-overlay').fadeOut(300, function() {
+            $(this).remove();
+          });
+          console.log('(zm) 用户已确认工时提醒使用说明');
+        });
       }
 
       async function setupLeftMenu() {

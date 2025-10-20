@@ -678,17 +678,14 @@
             return;
           }
 
-          // // 检查今天是否是工作日的星期四
-          // const today = new Date();
-          // const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ..., 4=周四, ..., 6=周六
+          // 检查今天是否是工作日
+          const today = new Date();
           
-          // // 检查是否是星期四（4）且是工作日（非调休）
-          // if (dayOfWeek !== 4 || !workdayCn.isWorkday(today)) {
-          //   console.log('(zm) 今天不是工作日的星期四，不显示工时强提醒');
-          //   return;
-          // }
-
-          // console.log('(zm) 今天是工作日的星期四，检查工时情况');
+          // 检查是否是工作日（非调休）
+          if (!workdayCn.isWorkday(today)) {
+            console.log('(zm) 今天不是工作日，不显示工时强提醒');
+            return;
+          }
 
           // 检查是否已存在遮罩
           if ($('.zm-work-hours-overlay').length > 0) {
@@ -783,7 +780,7 @@
                         ⚠️ 不要在iframe内跳转
                       </span>
                       <span style="padding: 5px 10px; background: #fff7e6; color: #d46b08; border-radius: 4px; white-space: nowrap;">
-                        ⏰ 弹框只在星期四提醒
+                        ⏰ 弹框每日提醒
                       </span>
                     </div>
                   </div>
@@ -978,7 +975,7 @@
                     使用注意事项
                   </h3>
                   <ul style="margin: 0; padding-left: 20px; color: #333; font-size: 13px; line-height: 2;">
-                    <li><strong>弹框时机：</strong>只会在<span style="color: #52c41a; font-weight: bold;">工作日的星期四</span>提醒</li>
+                    <li><strong>弹框时机：</strong>只会在<span style="color: #52c41a; font-weight: bold;">工作日</span>提醒</li>
                     <li><strong>填写方式：</strong>可在弹窗内切换"日历"、"任务"、"执行"三个页面</li>
                     <li><strong style="color: #1890ff;">⏳ 页面加载：</strong>由于<span style="color: #1890ff; font-weight: bold;">禅道页面加载较慢</span>，iframe内容可能需要稍等一会才能显示，请耐心等待</li>
                     <li><strong style="color: #ff4d4f;">⚠️ 重要：</strong>请<strong>不要在iframe内跳转到其他页面</strong>，否则会出现iframe套iframe的问题</li>

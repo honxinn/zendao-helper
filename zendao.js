@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.0.4
+// @version     2.0.5
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -697,6 +697,10 @@
           
           // 获取本周工时数据
           const weeklyData = await dataStrategies.fetch('weeklyWorkHours');
+          
+          // 获取已标记的请假日期
+          const leaveDates = JSON.parse(localStorage.getItem('zm-leave-dates') || '[]');
+          
           if (weeklyData && weeklyData.hasInsufficientHours) {
             // 创建全屏遮罩
             const overlayHtml = `
@@ -735,6 +739,21 @@
                         <span style="margin-left: 12px; color: #999; font-size: 11px;">
                           ${weeklyData.weekRange.start} ~ ${weeklyData.weekRange.end}
                         </span>
+                        <button class="zm-toggle-sections" style="
+                          background: none;
+                          border: none;
+                          color: #1890ff;
+                          font-size: 12px;
+                          cursor: pointer;
+                          margin-left: 16px;
+                          text-decoration: underline;
+                          padding: 0;
+                          transition: color 0.2s;
+                        "
+                        onmouseover="this.style.color='#40a9ff'"
+                        onmouseout="this.style.color='#1890ff'">
+                          [收起通知]
+                        </button>
                       </div>
                       <button class="zm-close-overlay" style="
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -756,20 +775,19 @@
                     </div>
                     
                     <!-- 提醒文字 -->
-                    <div style="margin-bottom: 10px; padding: 10px 12px; background: #fff2f0; border-left: 4px solid #ff4d4f; border-radius: 4px;">
-                      <p style="margin: 0 0 6px 0; color: #333; font-size: 13px; line-height: 1.6; font-weight: 500;">
-                        我知道你经常忘记填工时 😅，虽然右上角已经加了红色卡片提醒，但一忙起来就容易忽略。所以这次直接上全屏遮罩，逼着你先把工时填了再说！
-                      </p>
-                      <p style="margin: 0; color: #ff4d4f; font-size: 12px; font-weight: bold;">
-                        请不要尝试绕过弹框，因为会浪费你的开发时间。
-                      </p>
+                    <div class="zm-section-reminder" style="margin-bottom: 10px; padding: 10px 12px; background: #fff2f0; border-left: 4px solid #ff4d4f; border-radius: 4px;">
+                      <div class="zm-section-content">
+                        <p style="margin: 0 0 6px 0; color: #333; font-size: 13px; line-height: 1.6; font-weight: 500;">
+                          我知道你经常忘记填工时 😅，虽然右上角已经加了红色卡片提醒，但一忙起来就容易忽略。所以这次直接上全屏遮罩，逼着你先把工时填了再说！
+                        </p>
+                        <p style="margin: 0; color: #ff4d4f; font-size: 12px; font-weight: bold;">
+                          请不要尝试绕过弹框，因为会浪费你的开发时间。
+                        </p>
+                      </div>
                     </div>
                     
                     <!-- 信息行 -->
-                    <div style="display: flex; gap: 10px; align-items: center; font-size: 12px; line-height: 1.5; flex-wrap: wrap;">
-                      <span style="padding: 5px 10px; background: #fff2f0; color: #ff4d4f; border-radius: 4px; border-left: 3px solid #ff4d4f; white-space: nowrap; font-weight: 500;">
-                        <strong>未填满：</strong>${weeklyData.insufficientDays.map(day => `${day.date}(${day.hours}h)`).join('、')}
-                      </span>
+                    <div style="display: flex; gap: 10px; align-items: center; font-size: 12px; line-height: 1.5; flex-wrap: wrap; margin-bottom: 10px;">
                       <span style="padding: 5px 10px; background: #e6f7ff; color: #1890ff; border-radius: 4px; border-left: 3px solid #1890ff; white-space: nowrap;">
                         ⏳ 禅道页面加载慢，请耐心等待
                       </span>
@@ -783,6 +801,79 @@
                         ⏰ 弹框每日提醒
                       </span>
                     </div>
+                    
+                    <!-- 请假标记区域 -->
+                    <div class="zm-section-leave" style="background: #f6ffed; padding: 10px 12px; border-radius: 4px; border-left: 4px solid #52c41a; margin-bottom: ${leaveDates.length > 0 ? '10px' : '0'};">
+                      <div class="zm-section-content" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="color: #666; font-size: 12px;">未填满日期：</span>
+                        ${weeklyData.insufficientDays.length > 0 ? weeklyData.insufficientDays.map(day => `
+                          <label style="
+                            display: inline-flex;
+                            align-items: center;
+                            padding: 4px 8px;
+                            background: white;
+                            border: 1px solid #d9d9d9;
+                            border-radius: 3px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            font-size: 12px;
+                          " class="zm-leave-checkbox-label">
+                            <input type="checkbox" value="${day.date}" class="zm-leave-checkbox" style="
+                              width: 14px;
+                              height: 14px;
+                              margin-right: 6px;
+                              cursor: pointer;
+                            ">
+                            <span style="color: #333;">${day.date} (${day.hours}h)</span>
+                          </label>
+                        `).join('') : '<span style="color: #999; font-size: 12px;">暂无未填满日期</span>'}
+                        ${weeklyData.insufficientDays.length > 0 ? `
+                        <button class="zm-confirm-leave" style="
+                          padding: 4px 12px;
+                          background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+                          border: none;
+                          border-radius: 3px;
+                          color: white;
+                          font-size: 12px;
+                          font-weight: bold;
+                          cursor: pointer;
+                          transition: all 0.3s;
+                          margin-left: 8px;
+                        "
+                        onmouseover="this.style.transform='scale(1.05)'"
+                        onmouseout="this.style.transform='scale(1)'">
+                          <i class="icon icon-ok"></i> 确认标记
+                        </button>
+                        ` : ''}
+                      </div>
+                    </div>
+                    
+                    <!-- 已标记请假日期区域 -->
+                    ${leaveDates.length > 0 ? `
+                    <div class="zm-section-marked" style="background: #fff7e6; padding: 10px 12px; border-radius: 4px; border-left: 4px solid #faad14;">
+                      <div class="zm-section-content" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        ${leaveDates.map(date => `
+                          <button class="zm-unmark-leave" data-date="${date}" style="
+                            display: inline-flex;
+                            align-items: center;
+                            padding: 4px 8px;
+                            background: white;
+                            border: 1px solid #faad14;
+                            border-radius: 3px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            font-size: 12px;
+                            color: #d48806;
+                          "
+                          onmouseover="this.style.background='#fff7e6'; this.style.borderColor='#ff4d4f'; this.style.color='#ff4d4f';"
+                          onmouseout="this.style.background='white'; this.style.borderColor='#faad14'; this.style.color='#d48806';">
+                            <i class="icon icon-remove" style="margin-right: 4px;"></i>
+                            <span>${date}</span>
+                          </button>
+                        `).join('')}
+                      </div>
+                    </div>
+                    ` : ''}
                   </div>
                   
                   <!-- Tab切换按钮 -->
@@ -899,6 +990,70 @@
               location.reload();
             });
             
+            // 确认标记请假按钮
+            $('.zm-confirm-leave').on('click', function() {
+              const selectedDates = [];
+              $('.zm-leave-checkbox:checked').each(function() {
+                selectedDates.push($(this).val());
+              });
+              
+              if (selectedDates.length === 0) {
+                alert('请先选择需要标记的请假日期');
+                return;
+              }
+              
+              // 保存到localStorage
+              const existingDates = JSON.parse(localStorage.getItem('zm-leave-dates') || '[]');
+              const mergedDates = [...new Set([...existingDates, ...selectedDates])];
+              localStorage.setItem('zm-leave-dates', JSON.stringify(mergedDates));
+              
+              console.log('(zm) 已标记请假日期:', selectedDates);
+              
+              // 刷新页面
+              location.reload();
+            });
+            
+            // 取消标记请假按钮
+            $('.zm-unmark-leave').on('click', function() {
+              const dateToRemove = $(this).data('date');
+              
+              // 从localStorage中移除
+              const existingDates = JSON.parse(localStorage.getItem('zm-leave-dates') || '[]');
+              const updatedDates = existingDates.filter(date => date !== dateToRemove);
+              localStorage.setItem('zm-leave-dates', JSON.stringify(updatedDates));
+              
+              console.log('(zm) 已取消标记请假日期:', dateToRemove);
+              
+              // 刷新页面
+              location.reload();
+            });
+            
+            // 添加checkbox的hover效果
+            GM_addStyle(`
+              .zm-leave-checkbox-label:hover {
+                border-color: #52c41a !important;
+                background: #f6ffed !important;
+              }
+            `);
+            
+            // 统一收缩展开功能
+            let sectionsCollapsed = false;
+            $('.zm-toggle-sections').on('click', function() {
+              const $allContents = $('.zm-section-reminder .zm-section-content, .zm-section-leave .zm-section-content, .zm-section-marked .zm-section-content');
+              
+              if (sectionsCollapsed) {
+                // 展开
+                $allContents.slideDown(200);
+                $(this).text('[收起通知]');
+                sectionsCollapsed = false;
+              } else {
+                // 收起
+                $allContents.slideUp(200);
+                $(this).text('[展开通知]');
+                sectionsCollapsed = true;
+              }
+            });
+            
             // 检查是否需要显示使用提示弹窗
             const hasSeenTips = localStorage.getItem('zm-work-hours-tips-seen');
             if (!hasSeenTips) {
@@ -912,6 +1067,177 @@
         } catch (err) {
           console.error('(zm) 设置工时强提醒遮罩失败:', err);
         }
+      }
+
+      // 显示请假日期标记弹窗
+      function showLeaveDateModal(insufficientDays) {
+        const leaveDateModalHtml = `
+          <div class="zm-leave-modal-overlay" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 99999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+          ">
+            <div class="zm-leave-modal" style="
+              background: white;
+              border-radius: 12px;
+              padding: 0;
+              max-width: 450px;
+              width: 90%;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+              animation: slideUp 0.3s;
+              overflow: hidden;
+            ">
+              <!-- 头部 -->
+              <div style="
+                background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+                padding: 20px;
+                text-align: center;
+              ">
+                <i class="icon icon-calendar" style="font-size: 48px; color: white;"></i>
+                <h2 style="margin: 10px 0 0 0; color: white; font-size: 20px; font-weight: bold;">
+                  📅 标记请假日期
+                </h2>
+              </div>
+              
+              <!-- 内容 -->
+              <div style="padding: 25px;">
+                <div style="background: #e6f7ff; padding: 12px; border-radius: 6px; border-left: 4px solid #1890ff; margin-bottom: 20px;">
+                  <p style="margin: 0; color: #1890ff; font-size: 13px; line-height: 1.6;">
+                    💡 <strong>说明：</strong>如果某天请假/调休/出差等不需要填工时，可以勾选相应日期。标记后该日期将不再提醒。
+                  </p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                  <h3 style="margin: 0 0 12px 0; color: #333; font-size: 15px;">
+                    请选择请假日期：
+                  </h3>
+                  <div class="zm-leave-dates" style="max-height: 300px; overflow-y: auto;">
+                    ${insufficientDays.map(day => `
+                      <label style="
+                        display: flex;
+                        align-items: center;
+                        padding: 10px;
+                        margin-bottom: 8px;
+                        background: #fafafa;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                      " class="zm-leave-date-item">
+                        <input type="checkbox" value="${day.date}" style="
+                          width: 18px;
+                          height: 18px;
+                          margin-right: 12px;
+                          cursor: pointer;
+                        ">
+                        <div style="flex: 1;">
+                          <span style="font-weight: bold; color: #333;">${day.date}</span>
+                          <span style="color: #999; font-size: 12px; margin-left: 8px;">已填 ${day.hours}h / 需要 8h</span>
+                        </div>
+                      </label>
+                    `).join('')}
+                  </div>
+                </div>
+                
+                <div style="background: #fff7e6; padding: 10px; border-radius: 6px; margin-bottom: 20px;">
+                  <p style="margin: 0; color: #d48806; font-size: 12px; line-height: 1.5;">
+                    ⚠️ 标记后这些日期将从工时检查中排除，如果误标记可在localStorage中的"zm-leave-dates"中删除。
+                  </p>
+                </div>
+                
+                <!-- 按钮 -->
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                  <button class="zm-leave-cancel" style="
+                    background: white;
+                    border: 1px solid #d9d9d9;
+                    border-radius: 6px;
+                    padding: 8px 20px;
+                    color: #666;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                  "
+                  onmouseover="this.style.borderColor='#40a9ff';this.style.color='#40a9ff'"
+                  onmouseout="this.style.borderColor='#d9d9d9';this.style.color='#666'">
+                    取消
+                  </button>
+                  <button class="zm-leave-confirm" style="
+                    background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 20px;
+                    color: white;
+                    font-size: 14px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
+                    transition: all 0.3s;
+                  "
+                  onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 4px 12px rgba(82, 196, 26, 0.4)'"
+                  onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 8px rgba(82, 196, 26, 0.3)'">
+                    <i class="icon icon-ok"></i> 确认标记
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        $('body').append(leaveDateModalHtml);
+        
+        // label悬停效果
+        $('.zm-leave-date-item').hover(
+          function() {
+            $(this).css('background', '#e6f7ff');
+          },
+          function() {
+            $(this).css('background', '#fafafa');
+          }
+        );
+        
+        // 取消按钮
+        $('.zm-leave-cancel').on('click', function() {
+          $('.zm-leave-modal-overlay').fadeOut(300, function() {
+            $(this).remove();
+          });
+        });
+        
+        // 确认按钮
+        $('.zm-leave-confirm').on('click', function() {
+          const selectedDates = [];
+          $('.zm-leave-dates input[type="checkbox"]:checked').each(function() {
+            selectedDates.push($(this).val());
+          });
+          
+          if (selectedDates.length > 0) {
+            // 获取已有的请假日期
+            let leaveDates = JSON.parse(localStorage.getItem('zm-leave-dates') || '[]');
+            
+            // 合并并去重
+            leaveDates = [...new Set([...leaveDates, ...selectedDates])];
+            
+            // 保存到localStorage
+            localStorage.setItem('zm-leave-dates', JSON.stringify(leaveDates));
+            
+            console.log('(zm) 已标记请假日期:', selectedDates);
+            
+            // 显示成功提示并刷新
+            $('.zm-leave-modal-overlay').fadeOut(300, function() {
+              $(this).remove();
+              // 刷新页面重新检查
+              location.reload();
+            });
+          } else {
+            alert('请至少选择一个日期');
+          }
+        });
       }
 
       // 显示工时提醒使用提示弹窗
@@ -976,6 +1302,7 @@
                   </h3>
                   <ul style="margin: 0; padding-left: 20px; color: #333; font-size: 13px; line-height: 2;">
                     <li><strong>弹框时机：</strong>只会在<span style="color: #52c41a; font-weight: bold;">工作日</span>提醒</li>
+                    <li><strong style="color: #52c41a;">📅 请假标记：</strong>如果<span style="color: #52c41a; font-weight: bold;">请假/调休/出差</span>，可点击<strong>"标记请假"</strong>按钮，标记后该日期将不再提醒</li>
                     <li><strong>填写方式：</strong>可在弹窗内切换"日历"、"任务"、"执行"三个页面</li>
                     <li><strong style="color: #1890ff;">⏳ 页面加载：</strong>由于<span style="color: #1890ff; font-weight: bold;">禅道页面加载较慢</span>，iframe内容可能需要稍等一会才能显示，请耐心等待</li>
                     <li><strong style="color: #ff4d4f;">⚠️ 重要：</strong>请<strong>不要在iframe内跳转到其他页面</strong>，否则会出现iframe套iframe的问题</li>
@@ -1881,15 +2208,16 @@
                 dailyHours.set(date, parseFloat((currentHours + hours).toFixed(2)));
             });
             
-            // 获取用户已删除的日期列表
+            // 获取用户已删除的日期列表和请假日期列表
             const removedDates = JSON.parse(localStorage.getItem('zm-removed-work-hours-dates') || '[]');
+            const leaveDates = JSON.parse(localStorage.getItem('zm-leave-dates') || '[]');
             
-            // 找出工时不足的日期并按时间逆序排序（排除用户已删除的日期）
+            // 找出工时不足的日期并按时间逆序排序（排除用户已删除的日期和请假日期）
             return workdays
               .map(date => date.toISOString().split('T')[0])
               .filter(date => {
                   const hours = dailyHours.get(date) || 0;
-                  return hours < 8 && !removedDates.includes(date);
+                  return hours < 8 && !removedDates.includes(date) && !leaveDates.includes(date);
               })
               .map(date => {
                 const hours = dailyHours.get(date);
@@ -1985,15 +2313,16 @@
                 dailyHours.set(date, parseFloat((currentHours + hours).toFixed(2)));
             });
             
-            // 获取用户已删除的日期列表
+            // 获取用户已删除的日期列表和请假日期列表
             const removedDates = JSON.parse(localStorage.getItem('zm-removed-work-hours-dates') || '[]');
+            const leaveDates = JSON.parse(localStorage.getItem('zm-leave-dates') || '[]');
             
-            // 检查本周是否有工时不足的日期（排除用户已删除的日期）
+            // 检查本周是否有工时不足的日期（排除用户已删除的日期和请假日期）
             const insufficientDays = weekWorkdays
               .map(date => date.toISOString().split('T')[0])
               .filter(date => {
                   const hours = dailyHours.get(date) || 0;
-                  return hours < 8 && !removedDates.includes(date);
+                  return hours < 8 && !removedDates.includes(date) && !leaveDates.includes(date);
               });
             
             return {

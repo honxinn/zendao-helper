@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.0.5
+// @version     2.0.6
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -555,7 +555,7 @@
             setupMyPageWorkHoursReminder()
           } else if (/effort-batchCreate-\d+\.html/.test(path)) {
             setupBatchEffortPage()
-          } else if (!(/misc-checkUpdate|user-login|file-read|execution-task|my-work-task|effort-calendar|my-work-bug|effort-view|task-batchCreate|task-create|task-edit|task-view|task-cancel|user-deny-message-ajaxgetmessage/.test(path))) {
+          } else if (!(/misc-checkUpdate|user-login|file-read|execution-task|my-work-task|effort-calendar|my-work-bug|effort-view|task-batchCreate|task-create|task-edit|task-view|task-cancel|user-deny-message-ajaxgetmessage|my-effort-all|effort-edit|effort-view|bug-view|effort-createForObject-bug/.test(path))) {
             setupWorkHoursOverlay()
           }
           setupLeftMenu()
@@ -673,7 +673,7 @@
           }
 
           // 检查是否在排除的页面中
-          if (/misc-checkUpdate|user-login|file-read|execution-task|my-work-task|effort-calendar|my-work-bug|effort-view|task-batchCreate|task-create|task-edit|task-view|task-cancel|user-deny-message-ajaxgetmessage/.test(window.location.pathname)) {
+          if (/misc-checkUpdate|user-login|file-read|execution-task|my-work-task|effort-calendar|my-work-bug|effort-view|task-batchCreate|task-create|task-edit|task-view|task-cancel|user-deny-message-ajaxgetmessage|my-effort-all|effort-edit|effort-view|bug-view|effort-createForObject-bug/.test(window.location.pathname)) {
             console.log('(zm) 当前页面不需要工时强提醒');
             return;
           }

@@ -6,7 +6,7 @@
 // @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.0.8
+// @version     2.0.9
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -787,7 +787,7 @@
                     </div>
                     
                     <!-- 信息行 -->
-                    <div style="display: flex; gap: 10px; align-items: center; font-size: 12px; line-height: 1.5; flex-wrap: wrap; margin-bottom: 10px;">
+                    <div class="zm-section-tags" style="display: flex; gap: 10px; align-items: center; font-size: 12px; line-height: 1.5; flex-wrap: wrap; margin-bottom: 10px;">
                       <span style="padding: 5px 10px; background: #e6f7ff; color: #1890ff; border-radius: 4px; border-left: 3px solid #1890ff; white-space: nowrap;">
                         ⏳ 禅道页面加载慢，请耐心等待
                       </span>
@@ -1039,16 +1039,16 @@
             // 统一收缩展开功能
             let sectionsCollapsed = false;
             $('.zm-toggle-sections').on('click', function() {
-              const $allContents = $('.zm-section-reminder .zm-section-content, .zm-section-leave .zm-section-content, .zm-section-marked .zm-section-content');
+              const $allSections = $('.zm-section-reminder, .zm-section-tags, .zm-section-leave, .zm-section-marked');
               
               if (sectionsCollapsed) {
                 // 展开
-                $allContents.slideDown(200);
+                $allSections.slideDown(200);
                 $(this).text('[收起通知]');
                 sectionsCollapsed = false;
               } else {
                 // 收起
-                $allContents.slideUp(200);
+                $allSections.slideUp(200);
                 $(this).text('[展开通知]');
                 sectionsCollapsed = true;
               }

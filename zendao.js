@@ -3,10 +3,10 @@
 // @namespace   Violentmonkey Scripts
 // @match       http*://172.16.203.14/*
 // @require     https://unpkg.com/jquery@3.3.1/dist/jquery.min.js
-// @require     https://unpkg.com/workday-cn/lib/workday-cn.umd.js
+// @require     https://cdn.jsdelivr.net/gh/honxinn/workday-cn@48b29366ab802a70b7ca54caf9d3b60982accb10/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
-// @version     2.1.0
+// @version     2.1.1
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具

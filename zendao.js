@@ -154,6 +154,15 @@
       setBodyClickListener();
       // 根据当前路径进行不同的处理
       const path = document.location.pathname;
+      // 如果路径中包含 my-work-bug，设置分页 cookie 以便一次加载更多条目
+      try {
+        if (path.indexOf('my-work-bug') !== -1) {
+          setCookie('pagerMyBug', 500);
+          console.log('(zm) 已设置 pagerMyBug=500（路由匹配）');
+        }
+      } catch (e) {
+        console.warn('(zm) 设置 pagerMyBug 失败', e);
+      }
       switch (path) {
           case '/effort-calendar.html':
               handleEffortCalendar(colors);
@@ -494,20 +503,410 @@
               td.text-left.nobr { white-space: normal; }
               span.zm-mark { padding: 2px; border-radius: 4px; border: 1px solid; font-size: .9em; }
           `);
-          addBugFetchButton(colors);
+              addBugFetchButton(colors);
       }
 
       // 添加获取bug时间按钮
       function addBugFetchButton(colors) {
-          const btn = $(`<div class="btn-toolbar pull-right" style="display:flex;align-items:center;"><div class="btn btn-warning">获取bug时间</div><span style="color:${colors.red};">一页超过8个Bug时需要手动获取</span></div>`)
-          .on('click', async function () {
+          const $toolbar = $(`<div class="btn-toolbar pull-right zm-board-toolbar" style="display:flex;align-items:center;gap:8px;"></div>`);
+
+          const $fetchBtn = $(`<div class="btn btn-warning">获取bug时间</div>`)
+            .on('click', async function () {
               let bugData = await fetchBugData();
               bugData = bugData.map(({ start, hasReactive }) => ({ ...timeRangeStr(start), processed: hasReactive }))
               updateBugTimeCells(bugData, colors);
-          }).appendTo('#mainMenu');
+            });
+
+          const $boardBtn = $(`<div class="btn btn-primary">打开看板</div>`)
+            .on('click', function () {
+              openBoardsPanel(colors);
+            });
+
+          const $hint = $(`<span style="color:${colors.red};">一页超过8个Bug时需要手动获取</span>`);
+
+          $toolbar.append($fetchBtn, $boardBtn, $hint).appendTo('#mainMenu');
 
           // 自动点击按钮以加载数据
-          if ($('tr').length < 9) btn.click();
+          if ($('tr').length < 9) $fetchBtn.click();
+      }
+
+      // 打开看板面板（基于当前页数据）
+      function openBoardsPanel(colors) {
+        // 如果已存在则切换显示
+        if ($('.zm-boards-panel').length > 0) {
+          $('.zm-boards-panel').toggle();
+          return;
+        }
+
+        // 样式（更清晰的列与卡片布局，卡片垂直堆叠，紧凑操作）
+        GM_addStyle(`
+          :root{ --zm-bg:#ffffff; --zm-surface:#fbfbfc; --zm-muted:#8a8f98; --zm-danger: #ff5d5d; --zm-accent:#1677ff; --zm-border:#eef0f3; --zm-card-shadow:0 6px 18px rgba(20,20,30,0.04); }
+          .zm-boards-panel { position: fixed; right: 20px; top: 72px; bottom: 20px; left: 60px; background: var(--zm-bg); z-index: 99999; border-radius: 10px; box-shadow: 0 16px 48px rgba(10,10,20,0.06); display: flex; flex-direction: column; overflow: hidden; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+          }
+          .zm-boards-header { padding: 14px 18px; border-bottom: 1px solid var(--zm-border); display:flex; align-items:center; justify-content:space-between; background: linear-gradient(90deg,#fff, #fbfcff); }
+          .zm-boards-header strong{ font-size:15px; color:#20252b }
+          .zm-boards-body { padding: 16px; flex:1; overflow:auto; }
+          .zm-boards-columns { display:flex; gap:18px; align-items:flex-start; flex-wrap:nowrap; }
+          .zm-board-column { flex: 0 0 300px; background: var(--zm-surface); border:1px solid var(--zm-border); border-radius:8px; padding:10px; box-sizing:border-box; max-height: calc(100vh - 200px); overflow:auto; }
+          .zm-board-column .zm-board-title { font-weight:700; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; font-size:14px; color:#1f2630 }
+          .zm-board-title .zm-del-board { background:transparent;border:0;color:var(--zm-danger);cursor:pointer;padding:6px;border-radius:6px }
+          .zm-board-tabs { display:flex; gap:8px; margin-bottom:10px; }
+          .zm-board-tab { padding:6px 10px; background:transparent; border:1px solid transparent; border-radius:6px; cursor:pointer; font-size:12px; color:var(--zm-muted) }
+          .zm-board-tab.active { background: var(--zm-accent); color: #fff; border-color: var(--zm-accent) }
+          .zm-board-list { display:flex; gap:10px; flex-direction:column; }
+          .zm-board-card { background:var(--zm-bg); padding:10px 12px; border-radius:8px; box-shadow: var(--zm-card-shadow); font-size:13px; width:100%; overflow:hidden; display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(0,0,0,0.02) }
+          .zm-board-card .title { font-weight:600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#111827 }
+          .zm-board-card .meta { color:var(--zm-muted); font-size:12px; margin-top:6px }
+          .zm-card-left{ display:flex;flex-direction:column;gap:4px;flex:1;padding-right:8px }
+          .zm-card-actions{ display:flex;flex-direction:column;gap:6px;align-items:flex-end }
+          .zm-remove-bug{ background:transparent;border:1px solid var(--zm-border);padding:6px 8px;border-radius:6px;color:var(--zm-muted);cursor:pointer;font-size:12px }
+          .zm-move-select{ border:1px solid var(--zm-border);padding:6px 8px;border-radius:6px;font-size:12px;color:var(--zm-muted);background:#fff }
+          .zm-board-actions { display:flex; gap:8px; align-items:center }
+          .zm-board-create { margin-left:12px }
+          /* 创建模态微调 */
+          .zm-create-product-list .zm-prod-item{ padding:8px;border-radius:6px;cursor:pointer }
+          .zm-create-product-list .zm-prod-item:hover{ background:#f4f7fb }
+          .zm-badge{ display:inline-block; min-width:20px; height:20px; padding:0 6px; line-height:20px; font-size:12px; color:#fff; background:var(--zm-accent); border-radius:10px; text-align:center; margin-left:8px }
+          .zm-sidebar-item{ display:flex;align-items:center;justify-content:space-between }
+        `);
+
+        // 构建数据（取当前页）
+        const rows = $('#bugList tbody tr');
+        const bugs = [];
+        rows.each(function () {
+          const $tr = $(this);
+          const id = $tr.find('input[name="bugIDList[]"]').val();
+          const title = $tr.find('td:nth-child(5) a').text().trim();
+          const href = $tr.find('td:nth-child(5) a').attr('href');
+          const product = $tr.find('td:nth-child(6) a').text().trim() || '未分配产品';
+          const severity = $tr.find('td:nth-child(2) span.label-severity').attr('data-severity') || '0';
+          const opener = $tr.find('td:nth-child(8)').text().trim();
+          bugs.push({ id, title, href, product, severity: String(severity), opener });
+        });
+
+        // 读取自定义看板并收集已加入的 bug id
+        const customBoards = loadCustomBoards();
+        const customBugIds = new Set();
+        customBoards.forEach(cb => (cb.bugIds || []).forEach(id => customBugIds.add(String(id))));
+
+        // 按产品分组（排除已加入自定义看板的 bug）
+        const byProduct = {};
+        bugs.forEach(b => {
+          if (customBugIds.has(String(b.id))) return; // 已在自定义看板中，跳过
+          if (!byProduct[b.product]) byProduct[b.product] = [];
+          byProduct[b.product].push(b);
+        });
+
+        // 面板HTML：左侧看板列表（tabs），右侧内容区（单个看板内容）
+        const $panel = $(`
+          <div class="zm-boards-panel">
+            <div class="zm-boards-header">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <strong>Bug 看板（仅展示当前页Bug）</strong>
+                <span style="color:#999;font-size:12px;">共 ${bugs.length} 条</span>
+                <button class="btn btn-sm btn-default zm-board-create">新建看板</button>
+              </div>
+              <div class="zm-board-actions">
+                <button class="btn btn-sm" id="zm-close-boards">关闭</button>
+              </div>
+            </div>
+            <div class="zm-boards-body" style="display:flex;gap:12px;">
+              <div class="zm-board-sidebar" style="width:260px;overflow:auto;padding:8px;border-right:1px solid var(--zm-border);"></div>
+              <div class="zm-board-content" style="flex:1;overflow:auto;padding:8px;"></div>
+            </div>
+          </div>
+        `);
+
+        $('body').append($panel);
+
+        const $sidebar = $panel.find('.zm-board-sidebar');
+        const $content = $panel.find('.zm-board-content');
+
+        // 构建侧栏：先自定义看板，再产品列表（侧栏显示徽章计数）
+        customBoards.forEach(cb => {
+          const count = (cb.bugIds||[]).length || 0;
+          const $item = $(`<div class="zm-sidebar-item" data-name="${escapeHtml(cb.name)}" data-custom="1" style="padding:10px;border-radius:6px;cursor:pointer;margin-bottom:6px;background:transparent">` +
+            `<span>${escapeHtml(cb.name)}</span><span class="zm-badge">${count}</span></div>`);
+          $item.on('click', function () {
+            $sidebar.find('.zm-sidebar-item').css('background','');
+            $(this).css('background','#f5f7fb');
+            showBoard(cb.name, true);
+          });
+          $sidebar.append($item);
+        });
+
+        Object.keys(byProduct).forEach(prod => {
+          const pbugs = byProduct[prod];
+          const count = (pbugs||[]).length || 0;
+          const $item = $(`<div class="zm-sidebar-item" data-name="${escapeHtml(prod)}" data-custom="0" style="padding:10px;border-radius:6px;cursor:pointer;margin-bottom:6px;background:transparent">` +
+            `<span>${escapeHtml(prod)}</span><span class="zm-badge">${count}</span></div>`);
+          $item.on('click', function () {
+            $sidebar.find('.zm-sidebar-item').css('background','');
+            $(this).css('background','#f5f7fb');
+            showBoard(prod, false);
+          });
+          $sidebar.append($item);
+        });
+
+        // 打开看板函数：在右侧展示单个看板内容（复用 renderBoardColumn）
+        function showBoard(name, isCustom) {
+          $content.empty();
+          if (isCustom) {
+            const cb = customBoards.find(x => x.name === name);
+            const items = bugs.filter(b => (cb.bugIds||[]).includes(String(b.id)));
+            const $col = renderBoardColumn(cb.name, items, true);
+            // 添加删除按钮到标题
+            const $del = $(`<button class="zm-del-board" title="删除看板">删除看板</button>`);
+            $del.on('click', function () {
+              if (confirm('确认删除自定义看板：' + cb.name + '？')) {
+                deleteCustomBoard(cb.name);
+                $panel.remove();
+                openBoardsPanel(colors);
+              }
+            });
+            $col.find('.zm-board-title').append($del);
+            $content.append($col);
+          } else {
+            const items = byProduct[name] || [];
+            const $col = renderBoardColumn(name, items, false);
+            $content.append($col);
+          }
+        }
+
+        // 默认选中第一个侧栏项
+        const $first = $sidebar.find('.zm-sidebar-item').first();
+        if ($first.length) { $first.css('background','#f5f7fb'); showBoard($first.data('name'), $first.data('custom') === 1 || $first.data('custom') === '1'); }
+
+        // 事件绑定
+        $panel.find('#zm-close-boards').on('click', function () { $panel.remove(); });
+        $panel.find('.zm-board-create').on('click', function () { showCreateBoardModal(bugs); });
+
+        function renderBoardColumn(title, items, isCustom = false) {
+          const $col = $(`<div class="zm-board-column"></div>`);
+          const $title = $(`<div class="zm-board-title"><span>${title}<span class="zm-badge">${items.length || 0}</span></span></div>`);
+          $col.append($title);
+
+          // tabs for severity (labelled as "1级"... but data stored as numeric)
+          const severities = [{label:'全部', val:''}, {label:'1级', val:'1'}, {label:'2级', val:'2'}, {label:'3级', val:'3'}, {label:'4级', val:'4'}];
+          const $tabs = $(`<div class="zm-board-tabs"></div>`);
+          severities.forEach((t, idx) => {
+            const $tab = $(`<div class="zm-board-tab" data-val="${t.val}">${t.label}</div>`);
+            if (idx === 0) $tab.addClass('active');
+            $tab.on('click', function () {
+              $tabs.find('.zm-board-tab').removeClass('active');
+              $(this).addClass('active');
+              const tabVal = $(this).data('val');
+              renderCards(tabVal);
+            });
+            $tabs.append($tab);
+          });
+          $col.append($tabs);
+
+          const $list = $(`<div class="zm-board-list"></div>`);
+          $col.append($list);
+
+          function renderCards(tab) {
+            $list.empty();
+            const filtered = items.filter(it => {
+              if (!tab) return true;
+              return String(it.severity) === String(tab);
+            });
+            if (filtered.length === 0) {
+              $list.append(`<div style="color:#999;">无匹配的Bug</div>`);
+              return;
+            }
+            filtered.forEach(b => {
+              if (isCustom) {
+                const $card = $(
+                  `<div class="zm-board-card">` +
+                    `<div class="zm-card-left">` +
+                      `<a href="${b.href}" target="_blank" class="title" title="${escapeHtml(b.title)}">#${b.id} ${escapeHtml(b.title)}</a>` +
+                      `<div class="meta">${escapeHtml(b.opener)} · ${escapeHtml(b.product)}</div>` +
+                    `</div>` +
+                    `<div class="zm-card-actions">` +
+                      `<button class="zm-remove-bug" data-id="${b.id}" title="移除">✕</button>` +
+                      `<select class="zm-move-select" data-id="${b.id}"><option value="">移动到...</option></select>` +
+                    `</div>` +
+                  `</div>`
+                );
+                // populate move select
+                const $select = $card.find('.zm-move-select');
+                customBoards.forEach(cb => {
+                  if (cb.name === title) return;
+                  $select.append(`<option value="${escapeHtml(cb.name)}">${escapeHtml(cb.name)}</option>`);
+                });
+                $select.on('change', function() {
+                  const target = $(this).val();
+                  const bugId = $(this).data('id');
+                  if (!target) return;
+                  moveBugBetweenBoards(title, target, String(bugId));
+                });
+                $card.find('.zm-remove-bug').on('click', function() {
+                  const bugId = $(this).data('id');
+                  if (!confirm('确认从看板中移除 #' + bugId + ' ?')) return;
+                  removeBugFromBoard(title, String(bugId));
+                });
+                $list.append($card);
+              } else {
+                const $card = $(
+                  `<div class="zm-board-card">` +
+                    `<div class="zm-card-left">` +
+                      `<a href="${b.href}" target="_blank" class="title" title="${escapeHtml(b.title)}">#${b.id} ${escapeHtml(b.title)}</a>` +
+                      `<div class="meta">${escapeHtml(b.opener)}</div>` +
+                    `</div>` +
+                  `</div>`
+                );
+                $list.append($card);
+              }
+            });
+          }
+
+          // 初始渲染全部（使用空值表示全部）
+          renderCards('');
+          return $col;
+        }
+
+        // 移除 bug 从自定义看板
+        function removeBugFromBoard(boardName, bugId) {
+          const list = loadCustomBoards();
+          const idx = list.findIndex(b => b.name === boardName);
+          if (idx === -1) return;
+          list[idx].bugIds = (list[idx].bugIds || []).filter(id => String(id) !== String(bugId));
+          localStorage.setItem('zm-custom-boards', JSON.stringify(list));
+          // 重新渲染面板
+          $('.zm-boards-panel').remove();
+          openBoardsPanel(colors);
+        }
+
+        // 在自定义看板之间移动 bug
+        function moveBugBetweenBoards(srcName, targetName, bugId) {
+          const list = loadCustomBoards();
+          const src = list.find(b => b.name === srcName);
+          const tgt = list.find(b => b.name === targetName);
+          if (!src || !tgt) return;
+          // remove from src
+          src.bugIds = (src.bugIds || []).filter(id => String(id) !== String(bugId));
+          // add to tgt if not exist
+          if (!(tgt.bugIds || []).includes(String(bugId))) {
+            tgt.bugIds = (tgt.bugIds || []).concat([String(bugId)]);
+          }
+          localStorage.setItem('zm-custom-boards', JSON.stringify(list));
+          // 重新渲染面板
+          $('.zm-boards-panel').remove();
+          openBoardsPanel(colors);
+        }
+
+        function escapeHtml(str) {
+          return (str || '').replace(/[&<>\\\"]/g, function (s) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]); });
+        }
+
+        function showCreateBoardModal(allBugs) {
+          const customBoardsForModal = loadCustomBoards();
+          const occupied = new Set();
+          customBoardsForModal.forEach(cb => (cb.bugIds || []).forEach(id => occupied.add(String(id))));
+
+          const byProduct = {};
+          allBugs.forEach(b => {
+            if (!byProduct[b.product]) byProduct[b.product] = [];
+            byProduct[b.product].push(b);
+          });
+          const products = Object.keys(byProduct).sort();
+
+          const modal = `
+            <div class="zm-create-board-overlay" style="position:fixed;left:0;top:0;right:0;bottom:0;z-index:100000;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:16px;">
+              <div style="background:white;padding:12px;border-radius:8px;max-width:920px;width:95%;max-height:86vh;overflow:hidden;display:flex;flex-direction:column;">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #eee;">
+                  <h3 style="margin:0;font-size:16px;">新建看板</h3>
+                  <div style="display:flex;gap:8px;align-items:center;"><input class="form-control zm-new-board-name" placeholder="看板名称" style="width:260px;padding:6px 8px;"/></div>
+                </div>
+                <div style="flex:1;display:flex;overflow:hidden;">
+                  <div style="width:220px;border-right:1px solid #eee;overflow:auto;padding:8px;">
+                    <div style="font-size:13px;color:#666;margin-bottom:8px;">按产品选择（仅显示未加入自定义看板的 Bug）</div>
+                    <div class="zm-create-product-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+                  </div>
+                  <div style="flex:1;padding:8px;overflow:auto;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                      <div style="font-size:13px;color:#666;">产品内 Bug 列表</div>
+                      <div><button class="btn btn-xs btn-default zm-select-all">全选</button> <button class="btn btn-xs btn-default zm-clear-all">清空</button></div>
+                    </div>
+                    <div class="zm-create-bug-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+                  </div>
+                </div>
+                <div style="padding:8px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:8px;">
+                  <button class="btn btn-default zm-cancel-create">取消</button>
+                  <button class="btn btn-primary zm-confirm-create">创建</button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          const $modal = $(modal);
+          $('body').append($modal);
+
+          const $prodList = $modal.find('.zm-create-product-list');
+          const $bugList = $modal.find('.zm-create-bug-list');
+
+          // render product tabs (left)
+          products.forEach((p, idx) => {
+            const count = (byProduct[p] || []).filter(b => !occupied.has(String(b.id))).length;
+            const $item = $(`<div class="zm-prod-item" data-prod="${escapeHtml(p)}" style="padding:6px;border-radius:4px;cursor:pointer;${idx===0? 'background:#f5f5f5;':''}">${escapeHtml(p)} <span style="color:#999;font-size:12px;">(${count})</span></div>`);
+            $item.on('click', function() {
+              $prodList.find('.zm-prod-item').css('background','');
+              $(this).css('background','#f5f5f5');
+              renderProductBugs(p);
+            });
+            $prodList.append($item);
+          });
+
+          function renderProductBugs(prod) {
+            $bugList.empty();
+            const list = (byProduct[prod] || []).filter(b => !occupied.has(String(b.id)));
+            if (list.length === 0) {
+              $bugList.append('<div style="color:#999">没有可选的 Bug</div>');
+              return;
+            }
+            list.forEach(b => {
+              const $row = $(`<label style="display:flex;align-items:center;gap:8px;padding:6px;border-bottom:1px solid #f2f2f2;"><input type="checkbox" class="zm-new-board-checkbox" value="${b.id}"> <div style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">#${b.id} ${escapeHtml(b.title)} <span style="color:#999">(${escapeHtml(b.opener)})</span></div></label>`);
+              $bugList.append($row);
+            });
+          }
+
+          // initial render first product
+          if (products.length > 0) renderProductBugs(products[0]);
+
+          $modal.find('.zm-select-all').on('click', function() { $modal.find('.zm-new-board-checkbox').prop('checked', true); });
+          $modal.find('.zm-clear-all').on('click', function() { $modal.find('.zm-new-board-checkbox').prop('checked', false); });
+
+          $modal.find('.zm-cancel-create').on('click', function () { $modal.remove(); });
+          $modal.find('.zm-confirm-create').on('click', function () {
+            const name = $modal.find('.zm-new-board-name').val().trim();
+            if (!name) { alert('请输入看板名称'); return; }
+            const ids = $modal.find('.zm-new-board-checkbox:checked').map(function(){ return String($(this).val()); }).get();
+            if (ids.length === 0) { alert('请至少选择一个Bug'); return; }
+            // 保存并重绘
+            saveCustomBoard({ name, bugIds: ids });
+            $modal.remove();
+            $('.zm-boards-panel').remove();
+            openBoardsPanel(colors);
+          });
+        }
+
+        function loadCustomBoards() {
+          try { return JSON.parse(localStorage.getItem('zm-custom-boards') || '[]'); } catch (e) { return []; }
+        }
+
+        function saveCustomBoard(board) {
+          const list = loadCustomBoards();
+          // replace if same name
+          const idx = list.findIndex(b => b.name === board.name);
+          if (idx >= 0) list[idx] = board; else list.push(board);
+          localStorage.setItem('zm-custom-boards', JSON.stringify(list));
+        }
+
+        function deleteCustomBoard(name) {
+          const list = loadCustomBoards().filter(b => b.name !== name);
+          localStorage.setItem('zm-custom-boards', JSON.stringify(list));
+        }
       }
 
       // 获取Bug数据
@@ -1391,14 +1790,987 @@
         $('#menuMainNav .divider').before(myBug, myTask, zenGuard);
     }
 
+      // PostMessage listener: 接收 iframe 中的刷新请求并由父页面执行刷新
+      (function setupZMDockPostMessageListener() {
+        try {
+          if (window.__zm_postMessageListenerBound) return;
+          window.__zm_postMessageListenerBound = true;
+          window.addEventListener('message', function (ev) {
+            try {
+              const data = ev.data || {};
+              if (data.__zdh_action !== 'refresh-bug-view') return;
+              console.log('(zm) 收到 postMessage 请求刷新 Bug 详情页', data);
+              // 收起/隐藏快捷区（兼容内联/悬浮两种 UI）
+              try { $('#zm-bug-inline-panel').hide(); } catch (e) {}
+              try { $('#zm-bug-quick-dock').addClass('collapsed').hide(); } catch (e) {}
+              try { $('#zm-bug-dock-launcher').show(); } catch (e) {}
+              setTimeout(function () { location.reload(); }, 120);
+            } catch (err) {
+              console.warn('(zm) postMessage 处理失败', err);
+            }
+          }, false);
+        } catch (err) {
+          console.warn('(zm) 初始化 postMessage 监听失败', err);
+        }
+      })();
+
+      // Bug详情页悬浮快捷区（日志/指派/解决）
+      function setupBugQuickActionDock() {
+          const isIframePage = window.self !== window.top;
+
+          if ($('#zm-bug-quick-dock').length > 0 || $('#zm-bug-inline-panel').length > 0) {
+            console.info('(zm) Bug快捷区已存在，跳过重复初始化');
+              return;
+          }
+
+          const rawActions = [
+              {
+                  key: 'effort',
+                  title: '日志',
+                  icon: 'icon-time',
+                  link: $('a.effort.iframe[href*="/effort-createForObject-bug-"]').first()
+              },
+              {
+                  key: 'assign',
+                  title: '指派',
+                  icon: 'icon-hand-right',
+                  link: $('a.iframe[href*="/bug-assignTo-"]').first()
+              },
+              {
+                  key: 'resolve',
+                  title: '解决',
+                  icon: 'icon-checked',
+                  link: $('a.iframe[href*="/bug-resolve-"]').first()
+              }
+          ];
+
+          const actions = rawActions
+              .map(item => ({ ...item, href: item.link && item.link.attr('href') }))
+              .filter(item => item.link && item.link.length > 0 && item.href);
+
+          if (actions.length === 0) {
+              console.warn('(zm) Bug快捷区跳过: 未找到日志/指派/解决链接', {
+                effort: rawActions[0].link.length,
+                assign: rawActions[1].link.length,
+                resolve: rawActions[2].link.length,
+                path: location.pathname
+              });
+              return;
+          }
+
+          const lastActiveKey = localStorage.getItem('zm-bug-dock-active');
+          const activeKey = actions.some(item => item.key === lastActiveKey) ? lastActiveKey : actions[0].key;
+
+            // Helper: 在给定 document 上增强“解决方案”选择的展示（将每种方案标注为哪个角色填写）
+            function enhanceResolveFormInDocument(doc) {
+              try {
+                if (!doc) return;
+                const body = doc.body || doc;
+
+                // 优先处理 chosen 容器（常见于禅道UI）
+                const chosen = body.querySelector('.m-bug-resolve .chosen-container') || body.querySelector('.chosen-container');
+                if (chosen && !chosen.dataset.zmResolveEnhanced) {
+                  chosen.dataset.zmResolveEnhanced = '1';
+                  chosen.addEventListener('click', () => {
+                    const lis = chosen.querySelectorAll('li');
+                    lis.forEach(node => {
+                      try {
+                        const txt = node.textContent.trim();
+                        const replaced = getOwner(txt) || txt;
+                        // 选项里允许 HTML（chosen 的 li 支持），所以直接替换 innerHTML
+                        node.innerHTML = replaced;
+                        node.title = replaced.replace(/<span style="color: .*;">|<\/span>/g, '');
+                      } catch (e) {}
+                    });
+                  });
+                }
+
+                // 如果没有 chosen，则尝试处理普通的 select
+                const sel = body.querySelector('select[name="resolution"], select[name="resolveType"], select#resolveType');
+                if (sel && !sel.dataset.zmResolveEnhanced) {
+                  sel.dataset.zmResolveEnhanced = '1';
+                  const updateOptions = () => {
+                    Array.from(sel.options).forEach(opt => {
+                      try {
+                        const txt = opt.text.trim();
+                        const replaced = getOwner(txt) || txt;
+                        // option 不支持 HTML，放入 title 作为提示
+                        opt.title = replaced.replace(/<span style=\"color: .*;\">|<\/span>/g, '');
+                        // 显示文本保持可读性（去掉标签）
+                        opt.text = opt.title;
+                      } catch (e) {}
+                    });
+                  };
+                  updateOptions();
+                  // 观察子节点以防 JS 插件异步渲染
+                  const mo = new MutationObserver(updateOptions);
+                  mo.observe(sel, { childList: true, subtree: true });
+                }
+              } catch (err) {
+                console.warn('(zm) enhanceResolveFormInDocument 失败', err);
+              }
+            }
+
+            // Helper: 在 iframe 中增强 resolve 表单（安全尝试并监听延迟渲染）
+            function enhanceResolveFormInIframe(iframe) {
+              try {
+                if (!iframe || !iframe.contentDocument) return;
+                const doc = iframe.contentDocument;
+                enhanceResolveFormInDocument(doc);
+
+                // 如果页面稍后才渲染相关控件，观察 body
+                try {
+                  const observer = new MutationObserver((mutations, obs) => {
+                    if (doc.querySelector('.m-bug-resolve') || doc.querySelector('.chosen-container') || doc.querySelector('select[name="resolution"], select[name="resolveType"], select#resolveType')) {
+                      enhanceResolveFormInDocument(doc);
+                      obs.disconnect();
+                    }
+                  });
+                  if (doc.body) observer.observe(doc.body, { childList: true, subtree: true });
+                } catch (e) { /* ignore */ }
+              } catch (err) {
+                // 可能跨域，忽略
+              }
+            }
+
+            let inlinePanelRef = null;
+            let dockRef = null;
+            let launcherRef = null;
+
+            const closeQuickDockUI = () => {
+              if (inlinePanelRef && inlinePanelRef.length) {
+                inlinePanelRef.hide();
+              }
+              if (dockRef && dockRef.length) {
+                dockRef.addClass('collapsed').hide();
+              }
+              if (launcherRef && launcherRef.length) {
+                launcherRef.show();
+              }
+            };
+
+            // 保存成功后自动刷新当前Bug详情页（兼容内联/悬浮两种快捷区）
+            let hasTriggeredBugPageRefresh = false;
+            const reloadOuterWindow = (sourceLabel) => {
+              try {
+                // 如果当前在 iframe 内，尝试让顶层窗口直接 reload（同源时可行）
+                if (window.top && window.top !== window) {
+                  try {
+                    window.top.location.reload();
+                    return;
+                  } catch (err) {
+                    // 如果跨域无法访问 location，则使用 postMessage 通知顶层去刷新
+                    try {
+                      window.top.postMessage({ __zdh_action: 'refresh-bug-view', source: sourceLabel || 'iframe' }, '*');
+                      return;
+                    } catch (e) {
+                      // 忽略，继续 fallback
+                    }
+                  }
+                }
+              } catch (e) {
+                // ignore
+              }
+              // 兜底：刷新当前窗口
+              try { location.reload(); } catch (e) { console.warn('(zm) 无法执行 reload', e); }
+            };
+
+            const tryRefreshBugPageFromIframe = (iframe, sourceLabel) => {
+              if (hasTriggeredBugPageRefresh) return;
+
+              try {
+                const frameWin = iframe.contentWindow;
+                const frameDoc = iframe.contentDocument;
+                const path = frameWin?.location?.pathname || '';
+                const href = frameWin?.location?.href || '';
+
+                const returnedToBugView = /bug-view-\d+\.html/.test(path) || /module=bug&method=view/.test(href);
+                const saveSuccessInForm = /\/(bug-assignTo-|bug-resolve-|effort-createForObject-bug-)/.test(path)
+                && !!frameDoc?.querySelector('.alert-success, .result-success, .text-success');
+
+                if (returnedToBugView || saveSuccessInForm) {
+                  hasTriggeredBugPageRefresh = true;
+                  console.log(`(zm) 检测到${sourceLabel}保存完成，自动刷新Bug详情页`);
+                  closeQuickDockUI();
+                  setTimeout(() => reloadOuterWindow(sourceLabel), 120);
+                }
+              } catch (err) {
+                // 忽略跨文档读取异常
+              }
+            };
+
+            const bindRefreshWatcherForSaveButton = (iframe, sourceLabel) => {
+              try {
+                const frameDoc = iframe.contentDocument;
+                const frameWin = iframe.contentWindow;
+                const path = frameWin?.location?.pathname || '';
+                const isTargetFormPage = /\/(bug-assignTo-|bug-resolve-|effort-createForObject-bug-)/.test(path);
+                if (!frameDoc || !isTargetFormPage) return;
+
+                const bindKey = `${sourceLabel}:${path}`;
+                if (iframe.dataset.zmSubmitWatchKey === bindKey) {
+                  return;
+                }
+                iframe.dataset.zmSubmitWatchKey = bindKey;
+
+                let hasSaveIntent = false;
+
+                const markSaveIntent = () => {
+                  hasSaveIntent = true;
+                  // 避免长期保留旧意图
+                  setTimeout(() => {
+                    hasSaveIntent = false;
+                  }, 15000);
+                };
+
+                const triggerRefresh = () => {
+                  if (hasTriggeredBugPageRefresh) return;
+                  hasTriggeredBugPageRefresh = true;
+                  console.log(`(zm) 检测到${sourceLabel}保存按钮变为disabled，自动刷新Bug详情页`);
+                  closeQuickDockUI();
+                  setTimeout(() => reloadOuterWindow(sourceLabel), 160);
+                };
+
+                const bindButtonObserver = (submitBtn) => {
+                  if (!submitBtn || submitBtn.dataset.zmDisabledObserverBound === '1') {
+                    return;
+                  }
+
+                  submitBtn.dataset.zmDisabledObserverBound = '1';
+
+                  const checkDisabledAndRefresh = () => {
+                    const disabled = submitBtn.disabled || submitBtn.getAttribute('disabled') !== null;
+                    if (hasSaveIntent && disabled) {
+                      triggerRefresh();
+                    }
+                  };
+
+                  // 提交后按钮通常会被置灰，监听属性变化可稳定捕获
+                  const btnObserver = new MutationObserver(checkDisabledAndRefresh);
+                  btnObserver.observe(submitBtn, {
+                    attributes: true,
+                    attributeFilter: ['disabled', 'class', 'aria-disabled', 'data-loading']
+                  });
+
+                  // 兜底轮询，覆盖某些框架不触发 mutation 的场景
+                  const pollId = setInterval(() => {
+                    if (hasTriggeredBugPageRefresh) {
+                      clearInterval(pollId);
+                      return;
+                    }
+                    checkDisabledAndRefresh();
+                  }, 200);
+
+                  setTimeout(() => clearInterval(pollId), 15000);
+                };
+
+                const findSubmitButton = () => frameDoc.querySelector('#submit, button[type="submit"]');
+
+                const bindIfPossible = () => {
+                  const submitBtn = findSubmitButton();
+                  if (submitBtn) {
+                    bindButtonObserver(submitBtn);
+                  }
+                };
+
+                frameDoc.addEventListener('click', (event) => {
+                  const targetBtn = event.target?.closest?.('#submit, button[type="submit"]');
+                  if (targetBtn) {
+                    markSaveIntent();
+                    closeQuickDockUI();
+                    bindButtonObserver(targetBtn);
+                  }
+                }, true);
+
+                frameDoc.addEventListener('submit', () => {
+                  markSaveIntent();
+                  closeQuickDockUI();
+                  bindIfPossible();
+                }, true);
+
+                // 页面结构可能异步渲染，监听节点变化后补绑
+                const docObserver = new MutationObserver(bindIfPossible);
+                if (frameDoc.body) {
+                  docObserver.observe(frameDoc.body, { childList: true, subtree: true });
+                }
+
+                bindIfPossible();
+              } catch (err) {
+                // 忽略跨文档读取异常
+              }
+            };
+
+            // 在指定 document 中增强解决方案下拉/列表的展示（告知每种解决方案是哪个角色填）
+            const augmentResolveInDocument = (doc) => {
+              try {
+                if (!doc) return;
+                const resolveRoot = doc.querySelector('.m-bug-resolve') || doc;
+
+                const updateOptions = () => {
+                  try {
+                    // 支持 chosen 插件渲染的 li，也支持原生 select/option
+                    const lis = resolveRoot.querySelectorAll('.chosen-drop .chosen-results li, .chosen-results li');
+                    lis.forEach(node => {
+                      const raw = node.textContent.trim();
+                      const html = getOwner(raw);
+                      if (html) {
+                        node.innerHTML = html;
+                        node.title = html.replace(/<span style="color: .*;">|<\/span>/g, '');
+                      }
+                    });
+
+                    const opts = resolveRoot.querySelectorAll('select option');
+                    opts.forEach(opt => {
+                      const raw = opt.textContent.trim();
+                      const html = getOwner(raw).replace(/<[^>]+>/g, '');
+                      opt.textContent = html;
+                      opt.title = html;
+                    });
+                  } catch (e) {
+                    // ignore
+                  }
+                };
+
+                // 绑定点击/展示时更新
+                const containers = resolveRoot.querySelectorAll('.chosen-container, .chosen, .chosen-results');
+                containers.forEach(c => {
+                  if (c.__zm_owner_bound) return;
+                  c.__zm_owner_bound = true;
+                  c.addEventListener('click', () => setTimeout(updateOptions, 50));
+                });
+
+                // 直接尝试一次更新（用于已经渲染好的场景）
+                setTimeout(updateOptions, 200);
+              } catch (err) {
+                console.warn('(zm) augmentResolveInDocument failed', err);
+              }
+            };
+
+            // 在执行某个动作前检查是否需要先填工时（needEffort），如果需要则优先打开日志（尽量触发页面原始 a.effort），否则执行回调
+            const doActionWithEffortCheck = (actionKey, proceed) => {
+              try {
+                const parsed = parseBugPage();
+                if (parsed && parsed.needEffort) {
+                  console.log('(zm) detect needEffort before', actionKey);
+                  // 优先尝试点击页面上原始的 a.effort 链接（若还存在）
+                  const nativeEffort = document.querySelector('a.effort') || (actions.find(a => a.key === 'effort') || {}).link || (actions.find(a => a.key === 'effort') || {}).replacedLink;
+                  if (nativeEffort) {
+                    try {
+                      // 支持原生 click 或 jQuery 元素
+                      if (nativeEffort.click) nativeEffort.click();
+                      else $(nativeEffort).trigger('click');
+                    } catch (err) {
+                      try { $(nativeEffort).trigger('click'); } catch (e) {}
+                    }
+                    return;
+                  }
+
+                  // 如果找不到原始链接，尝试切换到内联/悬浮的日志 tab
+                  try {
+                    if (inlinePanelRef && inlinePanelRef.length) {
+                      // 显示并切换到日志 tab
+                      if (typeof switchInlineTab === 'function') switchInlineTab('effort');
+                      if (typeof showInlinePanel === 'function') showInlinePanel('effort');
+                      else toggleInlinePanel && toggleInlinePanel('effort');
+                      return;
+                    }
+                    if (dockRef && dockRef.length) {
+                      showDock && showDock();
+                      switchTab && switchTab('effort');
+                      return;
+                    }
+                  } catch (err) {
+                    // ignore and fallthrough
+                  }
+                }
+              } catch (err) {
+                console.warn('(zm) doActionWithEffortCheck error', err);
+              }
+
+              // 默认执行动作
+              try { proceed && proceed(); } catch (err) { console.warn('(zm) action proceed failed', err); }
+            };
+
+          // iframe页使用内联快捷区（放在日志/指派/解决按钮左侧）
+          if (isIframePage) {
+              GM_addStyle(`
+                #zm-bug-inline-panel {
+                  display: none;
+                  position: fixed;
+                  width: min(1180px, calc(100vw - 16px));
+                  border: 1px solid #d9d9d9;
+                  border-radius: 8px;
+                  background: #fff;
+                  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+                  overflow: hidden;
+                  min-height: 320px;
+                  z-index: 999996;
+                }
+
+                #zm-bug-inline-panel .zm-inline-header {
+                  height: 34px;
+                  padding: 0 10px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  border-bottom: 1px solid #eee;
+                  background: #fafafa;
+                  font-size: 12px;
+                }
+
+                #zm-bug-inline-panel .zm-inline-header-actions {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                }
+
+                #zm-bug-inline-panel .zm-inline-header-actions a {
+                  cursor: pointer;
+                  color: #666;
+                  text-decoration: none;
+                }
+
+                #zm-bug-inline-panel .zm-inline-pane {
+                  display: none;
+                  height: 600px;
+                }
+
+                #zm-bug-inline-panel .zm-inline-pane.active {
+                  display: block;
+                }
+
+                #zm-bug-inline-panel .zm-inline-pane iframe {
+                  width: 100%;
+                  height: 100%;
+                  border: 0;
+                }
+              `);
+
+              actions.forEach(item => {
+                const clonedLink = item.link.clone(false);
+                clonedLink
+                  .removeAttr('target data-toggle data-width data-height data-remote data-load')
+                  .attr('href', 'javascript:void(0)')
+                  .attr('data-zm-inline-key', item.key)
+                  .attr('title', `${item.title}（已接入下方快捷区）`);
+
+                // 先原位插入新按钮，再删除旧按钮，保证位置和原样式不变
+                item.link.after(clonedLink);
+                item.replacedLink = clonedLink;
+              });
+
+              const inlinePanelBodyHtml = actions.map(item => `
+                <div class="zm-inline-pane${item.key === activeKey ? ' active' : ''}" data-key="${item.key}">
+                  <iframe src="${item.href}" loading="eager"></iframe>
+                </div>
+              `).join('');
+
+              const inlinePanel = $(`
+                <div id="zm-bug-inline-panel">
+                  <div class="zm-inline-header">
+                    <span>Bug快捷操作</span>
+                    <div class="zm-inline-header-actions">
+                      <a href="javascript:void(0)" id="zm-bug-inline-collapse">收起</a>
+                    </div>
+                  </div>
+                  ${inlinePanelBodyHtml}
+                </div>
+              `);
+              inlinePanelRef = inlinePanel;
+
+                inlinePanel.find('iframe').on('load', function () {
+                  tryRefreshBugPageFromIframe(this, '内联快捷区');
+                  bindRefreshWatcherForSaveButton(this, '内联快捷区');
+                  try { enhanceResolveFormInIframe(this); } catch (e) {}
+                });
+
+                // 基于 .main-actions .btn-toolbar 增加专用展开/收起按钮
+                const rightToolbar = $('.main-actions .btn-toolbar').first();
+                const toggleClassName = (actions[0].replacedLink && actions[0].replacedLink.attr('class')) || 'btn';
+                const inlineToggleBtn = $(`<a href="javascript:void(0)" id="zm-bug-inline-toggle" class="${toggleClassName}" title="展开/收起快捷窗">快捷窗</a>`);
+                if (rightToolbar.length > 0) {
+                  rightToolbar.append(inlineToggleBtn);
+                } else if (actions[actions.length - 1]?.replacedLink?.length) {
+                  actions[actions.length - 1].replacedLink.after(inlineToggleBtn);
+                }
+
+                if (rightToolbar.length > 0) {
+                  $('body').append(inlinePanel);
+                } else {
+                  $('body').append(inlinePanel);
+                }
+
+                // 新按钮插入完成后，再删除原始a按钮，避免触发禅道原弹层
+                actions.forEach(item => item.link.remove());
+
+              const switchInlineTab = (key) => {
+                  inlinePanel.find('.zm-inline-pane').removeClass('active');
+                  inlinePanel.find(`.zm-inline-pane[data-key="${key}"]`).addClass('active');
+                  localStorage.setItem('zm-bug-dock-active', key);
+              };
+
+                const updatePanelPosition = () => {
+                  const anchor = $('.main-actions .btn-toolbar').first();
+                  if (!anchor.length || !inlinePanel.is(':visible')) return;
+
+                  const panelEl = inlinePanel[0];
+                  const anchorRect = anchor[0].getBoundingClientRect();
+                  const panelWidth = panelEl.offsetWidth || Math.min(window.innerWidth - 16, 760);
+                  const panelHeight = panelEl.offsetHeight || 500;
+
+                  const left = Math.max(8, Math.min(anchorRect.right - panelWidth, window.innerWidth - panelWidth - 8));
+                  let top = anchorRect.top - panelHeight - 8;
+                  if (top < 8) {
+                  top = Math.min(window.innerHeight - panelHeight - 8, anchorRect.bottom + 8);
+                  }
+
+                  inlinePanel.css({ left: `${left}px`, top: `${Math.max(8, top)}px` });
+                };
+
+                const showInlinePanel = (key) => {
+                  if (key) {
+                  switchInlineTab(key);
+                  }
+                  inlinePanel.show();
+                  inlinePanel.find('#zm-bug-inline-collapse').text('收起');
+                  updatePanelPosition();
+                };
+
+                const toggleInlinePanel = (key) => {
+                  const currentActiveKey = inlinePanel.find('.zm-inline-pane.active').data('key');
+                  const sameTab = key && currentActiveKey === key;
+                  if (inlinePanel.is(':visible') && (sameTab || !key)) {
+                  inlinePanel.hide();
+                  inlinePanel.find('#zm-bug-inline-collapse').text('展开');
+                  return;
+                  }
+                  showInlinePanel(key || currentActiveKey || activeKey);
+                };
+
+                switchInlineTab(activeKey);
+                $(window).on('resize.zmBugInline scroll.zmBugInline', updatePanelPosition);
+
+              actions.forEach(item => {
+                  item.replacedLink.on('click.zmBugDock', function (e) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    try {
+                      const { needEffort } = parseBugPage() || {};
+                      if (needEffort && item.key !== 'effort') {
+                        // 如果需要先填写日志，切换到日志面板
+                        showInlinePanel('effort');
+                        console.info('(zm) 检测到未填写日志，已切换到 日志 面板');
+                        return;
+                      }
+                    } catch (err) {}
+                    toggleInlinePanel(item.key);
+                  });
+              });
+
+                inlinePanel.find('#zm-bug-inline-collapse').on('click', function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggleInlinePanel();
+                });
+
+                $('#zm-bug-inline-toggle').on('click.zmBugDock', function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggleInlinePanel();
+                });
+
+                // ensure resolve form augmentation when dock iframes load
+                inlinePanel.find('iframe').each(function() {
+                  try { enhanceResolveFormInIframe(this); } catch (e) {}
+                });
+
+              console.log('(zm) 已启用Bug详情页内联快捷区(iframe)');
+              return;
+          }
+
+          GM_addStyle(`
+            #zm-bug-quick-dock.zm-bug-dock {
+              position: fixed;
+              right: 16px;
+              bottom: 16px;
+              width: min(560px, calc(100vw - 24px));
+              height: min(560px, 72vh);
+              background: #fff;
+              border: 1px solid #d9d9d9;
+              border-radius: 10px;
+              box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+              z-index: 999999;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+            }
+
+            #zm-bug-quick-dock.zm-bug-dock.dragging {
+              opacity: 0.92;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-header {
+              height: 42px;
+              padding: 0 12px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              background: linear-gradient(135deg, #1f4ea3 0%, #3268be 100%);
+              color: #fff;
+              cursor: move;
+              user-select: none;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-title {
+              display: flex;
+              align-items: center;
+              font-size: 13px;
+              font-weight: bold;
+              letter-spacing: 0.3px;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-title .icon {
+              margin-right: 6px;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-controls {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-controls .icon {
+              cursor: pointer;
+              font-size: 13px;
+              opacity: 0.88;
+              transition: opacity 0.2s;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-controls .icon:hover {
+              opacity: 1;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-tabs {
+              display: flex;
+              border-bottom: 1px solid #e8e8e8;
+              background: #fafafa;
+              flex-shrink: 0;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-tab {
+              flex: 1;
+              border: none;
+              border-right: 1px solid #ededed;
+              background: transparent;
+              color: #666;
+              height: 38px;
+              font-size: 13px;
+              cursor: pointer;
+              transition: all 0.2s;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-tab:last-child {
+              border-right: none;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-tab:hover {
+              background: #f0f5ff;
+              color: #1f4ea3;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-tab.active {
+              background: #fff;
+              color: #1f4ea3;
+              font-weight: bold;
+              box-shadow: inset 0 -2px 0 #1f4ea3;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-body {
+              position: relative;
+              flex: 1;
+              min-height: 220px;
+              background: #fff;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-pane {
+              display: none;
+              position: absolute;
+              inset: 0;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-pane.active {
+              display: block;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-pane iframe {
+              width: 100%;
+              height: 100%;
+              border: 0;
+              background: #fff;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-loading {
+              display: none;
+              position: absolute;
+              inset: 0;
+              background: rgba(255, 255, 255, 0.84);
+              align-items: center;
+              justify-content: center;
+              color: #1f4ea3;
+              font-size: 13px;
+              font-weight: bold;
+            }
+
+            #zm-bug-quick-dock .zm-bug-dock-pane.loading .zm-bug-dock-loading {
+              display: flex;
+            }
+
+            #zm-bug-quick-dock.collapsed {
+              width: 220px;
+              height: 42px;
+            }
+
+            #zm-bug-quick-dock.collapsed .zm-bug-dock-tabs,
+            #zm-bug-quick-dock.collapsed .zm-bug-dock-body {
+              display: none;
+            }
+
+            #zm-bug-dock-launcher {
+              position: fixed;
+              right: 16px;
+              bottom: 16px;
+              height: 40px;
+              padding: 0 14px;
+              border: 0;
+              border-radius: 20px;
+              background: linear-gradient(135deg, #1f4ea3 0%, #3268be 100%);
+              color: #fff;
+              cursor: pointer;
+              box-shadow: 0 6px 14px rgba(31, 78, 163, 0.35);
+              z-index: 999998;
+              font-size: 13px;
+              font-weight: bold;
+              display: none;
+            }
+
+            #zm-bug-dock-launcher:hover {
+              filter: brightness(1.05);
+            }
+
+            @media (max-width: 1100px) {
+              #zm-bug-quick-dock.zm-bug-dock {
+                right: 8px;
+                bottom: 8px;
+                width: calc(100vw - 16px);
+                height: 68vh;
+              }
+
+              #zm-bug-dock-launcher {
+                right: 8px;
+                bottom: 8px;
+              }
+            }
+          `);
+
+          const tabsHtml = actions.map(item => `
+            <button type="button" class="zm-bug-dock-tab${item.key === activeKey ? ' active' : ''}" data-key="${item.key}">
+              <i class="icon ${item.icon}"></i>${item.title}
+            </button>
+          `).join('');
+
+          const panesHtml = actions.map(item => `
+            <div class="zm-bug-dock-pane${item.key === activeKey ? ' active loading' : ''}" data-key="${item.key}">
+              <iframe data-src="${item.href}" src="${item.key === activeKey ? item.href : 'about:blank'}" loading="eager"></iframe>
+              <div class="zm-bug-dock-loading">${item.title}加载中...</div>
+            </div>
+          `).join('');
+
+          const dock = $(`
+            <div id="zm-bug-quick-dock" class="zm-bug-dock">
+              <div class="zm-bug-dock-header">
+                <div class="zm-bug-dock-title"><i class="icon icon-magic"></i><span>Bug快捷操作</span></div>
+                <div class="zm-bug-dock-controls">
+                  <i class="icon icon-refresh zm-bug-dock-refresh" title="刷新当前"></i>
+                  <i class="icon icon-minus zm-bug-dock-collapse" title="收起/展开"></i>
+                  <i class="icon icon-close zm-bug-dock-close" title="隐藏"></i>
+                </div>
+              </div>
+              <div class="zm-bug-dock-tabs">${tabsHtml}</div>
+              <div class="zm-bug-dock-body">${panesHtml}</div>
+            </div>
+          `).appendTo('body');
+          dockRef = dock;
+
+          const launcher = $('<button type="button" id="zm-bug-dock-launcher">Bug快捷操作</button>').appendTo('body');
+          launcherRef = launcher;
+
+          const buildFrameSrc = (src, force = false) => {
+              if (!force) {
+                  return src;
+              }
+              const separator = src.includes('?') ? '&' : '?';
+              return `${src}${separator}_=${Date.now()}`;
+          };
+
+          const loadFrame = (key, force = false) => {
+              const pane = dock.find(`.zm-bug-dock-pane[data-key="${key}"]`);
+              if (!pane.length) return;
+
+              const iframe = pane.find('iframe');
+              const src = iframe.attr('data-src');
+              if (!src) return;
+
+              const currentSrc = iframe.attr('src');
+              if (!force && currentSrc && currentSrc !== 'about:blank') {
+                  return;
+              }
+
+              pane.addClass('loading');
+              iframe.attr('src', buildFrameSrc(src, force));
+          };
+
+          const switchTab = (key) => {
+              dock.find('.zm-bug-dock-tab').removeClass('active');
+              dock.find(`.zm-bug-dock-tab[data-key="${key}"]`).addClass('active');
+              dock.find('.zm-bug-dock-pane').removeClass('active');
+              dock.find(`.zm-bug-dock-pane[data-key="${key}"]`).addClass('active');
+              loadFrame(key);
+              localStorage.setItem('zm-bug-dock-active', key);
+          };
+
+          const showDock = () => {
+              dock.show().removeClass('collapsed');
+              launcher.hide();
+          };
+
+          dock.find('iframe').on('load', function () {
+              $(this).closest('.zm-bug-dock-pane').removeClass('loading');
+              tryRefreshBugPageFromIframe(this, '悬浮快捷区');
+              bindRefreshWatcherForSaveButton(this, '悬浮快捷区');
+          });
+
+          dock.find('.zm-bug-dock-tab').on('click', function () {
+              switchTab($(this).data('key'));
+          });
+
+          dock.find('.zm-bug-dock-refresh').on('click', function (e) {
+              e.stopPropagation();
+              const currentKey = dock.find('.zm-bug-dock-tab.active').data('key');
+              if (currentKey) {
+                  loadFrame(currentKey, true);
+              }
+          });
+
+          dock.find('.zm-bug-dock-collapse').on('click', function (e) {
+              e.stopPropagation();
+              dock.toggleClass('collapsed');
+          });
+
+          dock.find('.zm-bug-dock-close').on('click', function (e) {
+              e.stopPropagation();
+              dock.hide();
+              launcher.show();
+          });
+
+          launcher.on('click', function () {
+              showDock();
+          });
+
+          actions.forEach((item, idx) => {
+              item.link.attr('title', `${item.title}（已接入悬浮快捷区）`);
+              item.link.on('click.zmBugDock', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                // 在触发悬浮区前先做工时检查
+                doActionWithEffortCheck(item.key, function() {
+                showDock();
+                switchTab(item.key);
+                });
+              });
+
+              if (item.key !== activeKey) {
+                  setTimeout(() => loadFrame(item.key), 350 + idx * 350);
+              }
+          });
+
+          // 允许拖动位置，避免遮挡原始页面内容
+          let isDragging = false;
+          let startX = 0;
+          let startY = 0;
+          let startLeft = 0;
+          let startTop = 0;
+
+          dock.find('.zm-bug-dock-header').on('pointerdown', function (e) {
+              if ($(e.target).closest('.zm-bug-dock-controls').length > 0) {
+                  return;
+              }
+
+              const rect = dock[0].getBoundingClientRect();
+              isDragging = true;
+              startX = e.clientX;
+              startY = e.clientY;
+              startLeft = rect.left;
+              startTop = rect.top;
+
+              dock.addClass('dragging').css({
+                  left: `${startLeft}px`,
+                  top: `${startTop}px`,
+                  right: 'auto',
+                  bottom: 'auto'
+              });
+
+              e.preventDefault();
+          });
+
+          $(document).on('pointermove.zmBugDock', function (e) {
+              if (!isDragging) {
+                  return;
+              }
+
+              const width = dock.outerWidth() || 0;
+              const height = dock.outerHeight() || 0;
+              const maxLeft = Math.max(window.innerWidth - width - 8, 8);
+              const maxTop = Math.max(window.innerHeight - height - 8, 8);
+
+              const nextLeft = Math.min(Math.max(startLeft + e.clientX - startX, 8), maxLeft);
+              const nextTop = Math.min(Math.max(startTop + e.clientY - startY, 8), maxTop);
+
+              dock.css({
+                  left: `${nextLeft}px`,
+                  top: `${nextTop}px`
+              });
+          });
+
+          $(document).on('pointerup.zmBugDock pointercancel.zmBugDock', function () {
+              if (!isDragging) {
+                  return;
+              }
+              isDragging = false;
+              dock.removeClass('dragging');
+          });
+
+          console.log('(zm) 已启用Bug详情页悬浮快捷区');
+      }
+
       // 设置Bug详情页功能
       function setupBugDetailPage() {
+          console.info('(zm) 命中Bug详情页初始化', {
+            path: location.pathname,
+            href: location.href
+          });
+
           $('.label.label-id').on('click', function () {
               GM_setClipboard(`🔨bug(${$(this).text().trim()}): ${$(this).next().text().trim().replace(/【.+】(【.+】)*(-)*/, '')}
 
 禅道BUG链接: [【${$(this).text().trim()}】${$(this).next().text().trim()}](${location.href})`);
           }).attr('title', '点击复制Bug提交信息').css({cursor: 'pointer'});
           enforceEffortLogging();
+          console.info('(zm) 已绑定强制工时检查: enforceEffortLogging');
+          setupBugQuickActionDock();
       }
 
       // 设置需求详情页功能
@@ -1469,8 +2841,13 @@
        * Bug填写工时窗口默认填充1h处理BUG
        */
       function setupBugEffortPage() {
-          // 获取Bug ID
-          const bug_id = $("#mainContent > div > h2 > span.label.label-id")[0].innerHTML;
+          // 获取Bug ID（不同布局下节点可能不存在）
+          const bugIdText = $('#mainContent > div > h2 > span.label.label-id').first().text().trim();
+          const bug_id = bugIdText || (location.pathname.match(/effort-createForObject-bug-(\d+)\.html/) || [])[1] || '';
+          if (!bug_id) {
+            console.warn('(zm) setupBugEffortPage: 未找到 bug_id，跳过默认填充');
+            return;
+          }
 
           // Bug类型配置
           const bugTypes = {
@@ -1507,22 +2884,31 @@
           insertContentToPage(createBugCard());
 
           // 添加点击事件
-          $("[data-content]").on('click', function () {
+            $("[data-content]").on('click', function () {
               const content = $(this).data('content');
-              $(".form-control")[2].value = content;
+              const contentInput = $(".form-control").eq(2)[0];
+              if (contentInput) {
+                contentInput.value = content;
+              }
               addVisualFeedback($(this), '#ffc7bf');
           });
 
           // 默认填写工时为1小时
-          $(".form-control")[1].value = 1;
-          $(".form-control")[2].value = "【解决内部BUG】处理BUG " + bug_id;
+            const effortInput = $(".form-control").eq(1)[0];
+            const descInput = $(".form-control").eq(2)[0];
+            if (effortInput) effortInput.value = 1;
+            if (descInput) descInput.value = "【解决内部BUG】处理BUG " + bug_id;
       }
 
       /**
        * 任务工时窗口默认填充1h完成任务
        */
       function setupTaskEffortPage() {
-          const taskName = $("#mainContent > div > h2 > span:nth-child(2)")[0].innerHTML;
+          const taskName = $('#mainContent > div > h2 > span:nth-child(2)').first().text().trim();
+          if (!taskName) {
+            console.warn('(zm) setupTaskEffortPage: 未找到 taskName，跳过默认填充');
+            return;
+          }
 
           // 生成任务卡片HTML
           const createTaskCard = (category) => {
@@ -1564,7 +2950,10 @@
           // 添加点击事件
           $("div[style*='flex: 1'] li").on('click', function () {
               const fullText = $(this).attr('data-task');
-              $(".form-control")[3].value = fullText;
+              const targetInput = $(".form-control").eq(3)[0];
+              if (targetInput) {
+                targetInput.value = fullText;
+              }
               addVisualFeedback($(this));
           });
       }

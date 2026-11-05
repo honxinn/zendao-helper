@@ -7,7 +7,7 @@
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
 // @run-at      document-start
-// @version     2.1.3
+// @version     2.1.4
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -3233,9 +3233,22 @@
           });
       }
 
+      // 后台读取使用 AJAX 标记，避免被禅道当作页面导航；沿用当前标签的会话。
+      // 不缓存数据响应，防止后续页面导航复用后台响应。
+      function fetchZenTao(url, options = {}) {
+          const requestUrl = new URL(url, window.location.href);
+          const tid = new URL(window.location.href).searchParams.get('tid');
+          if (tid && !requestUrl.searchParams.has('tid')) {
+              requestUrl.searchParams.set('tid', tid);
+          }
+          const headers = new Headers(options.headers);
+          headers.set('X-Requested-With', 'XMLHttpRequest');
+          return fetch(requestUrl.href, { ...options, headers, cache: 'no-store' });
+      }
+
       // 获取网页文档
       async function fetchDocument(url) {
-          const response = await fetch(url);
+          const response = await fetchZenTao(url);
           const arrayBuffer = await response.arrayBuffer();
           const decoder = new TextDecoder(document.characterSet);
           return new DOMParser().parseFromString(decoder.decode(arrayBuffer), 'text/html');
@@ -3603,7 +3616,7 @@
             
             setCookie('pagerMyEffort', 100);
             
-            const response = await fetch('/my-effort-all-date_desc-1000000-100-1.json', {
+            const response = await fetchZenTao('/my-effort-all-date_desc-1000000-100-1.json', {
               signal: controller.signal
             });
             const text = await response.text(); // 先获取文本响应
@@ -3682,7 +3695,7 @@
             
             setCookie('pagerMyEffort', 1000);
             
-            const response = await fetch('/my-effort-all-date_desc-1000000-1000-1.json', {
+            const response = await fetchZenTao('/my-effort-all-date_desc-1000000-1000-1.json', {
               signal: controller.signal
             });
             const text = await response.text();
@@ -3792,7 +3805,7 @@
             const userName = localStorage.getItem('zm-username');
             if (!userName) return [];
 
-            const response = await fetch('/my-work-bug.html', {
+            const response = await fetchZenTao('/my-work-bug.html', {
               signal: controller.signal
             });
             const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
@@ -3804,7 +3817,7 @@
                 const title = tr.cells[4].textContent.trim();
                 const status = tr.cells[6].textContent.trim();
                 
-                const detailResponse = await fetch(`/bug-view-${id}.json`, {
+                const detailResponse = await fetchZenTao(`/bug-view-${id}.json`, {
                   signal: controller.signal
                 });
                 const rawDetail = await detailResponse.json();

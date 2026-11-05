@@ -7,7 +7,7 @@
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
 // @run-at      document-start
-// @version     2.1.5
+// @version     2.1.6
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -26,6 +26,7 @@
   }
 
   $.noConflict(true)(document).ready(async ($) => {
+      repairTaskBackLinks(document, window.location.href);
       // 面板策略管理
       const panelStrategies = {
         strategies: {},
@@ -3231,6 +3232,27 @@
 
               Promise.all(iframeLoadPromises).then(() => checkElement());
           });
+      }
+
+      // 新标签会复制基础会话，旧版本留下的 JSON 返回地址可能持续被继承。
+      // 仅修复任务详情中已污染的返回链接，保留正常返回地址及列表筛选条件。
+      function repairTaskBackLinks(doc, pageHref) {
+          const page = new URL(pageHref);
+          if (!/\/task-view-\d+\.html$/.test(page.pathname)) return;
+          const links = Array.from(doc.querySelectorAll('a[href]'));
+          const broken = links.filter(a => a.textContent.includes('返回') &&
+              /\.json$/.test(new URL(a.getAttribute('href'), page).pathname));
+          if (!broken.length) return;
+          const isTaskList = url => url.origin === page.origin &&
+              /\/(?:execution-task(?:-[^/]*)?|my-work-task(?:-[^/]*)?)\.html$/.test(url.pathname);
+          const referrer = doc.referrer ? new URL(doc.referrer, page) : null;
+          const destination = referrer && isTaskList(referrer) ? referrer :
+              links.map(a => new URL(a.getAttribute('href'), page)).find(isTaskList);
+          if (!destination) return;
+          const tid = page.searchParams.get('tid');
+          if (tid) destination.searchParams.set('tid', tid);
+          else destination.searchParams.delete('tid');
+          broken.forEach(a => a.setAttribute('href', destination.pathname + destination.search + destination.hash));
       }
 
       // my-effort 的 JSON 请求也会改写服务端 taskList，AJAX 标记无法阻止。

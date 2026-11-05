@@ -7,7 +7,7 @@
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
 // @run-at      document-start
-// @version     2.1.4
+// @version     2.1.5
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
 // @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
@@ -3233,14 +3233,14 @@
           });
       }
 
-      // 后台读取使用 AJAX 标记，避免被禅道当作页面导航；沿用当前标签的会话。
-      // 不缓存数据响应，防止后续页面导航复用后台响应。
+      // my-effort 的 JSON 请求也会改写服务端 taskList，AJAX 标记无法阻止。
+      // 后台读取必须使用独立 tid，隔离导航状态；同源登录 Cookie 仍由 fetch 携带。
       function fetchZenTao(url, options = {}) {
           const requestUrl = new URL(url, window.location.href);
-          const tid = new URL(window.location.href).searchParams.get('tid');
-          if (tid && !requestUrl.searchParams.has('tid')) {
-              requestUrl.searchParams.set('tid', tid);
+          if (!fetchZenTao.backgroundTid) {
+              fetchZenTao.backgroundTid = 'zm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
           }
+          requestUrl.searchParams.set('tid', fetchZenTao.backgroundTid);
           const headers = new Headers(options.headers);
           headers.set('X-Requested-With', 'XMLHttpRequest');
           return fetch(requestUrl.href, { ...options, headers, cache: 'no-store' });

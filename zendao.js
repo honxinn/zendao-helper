@@ -6,11 +6,12 @@
 // @require     https://cdn.jsdelivr.net/gh/honxinn/workday-cn@48b29366ab802a70b7ca54caf9d3b60982accb10/lib/workday-cn.umd.js
 // @grant       GM_addStyle
 // @grant       GM_setClipboard
+// @grant       unsafeWindow
 // @run-at      document-start
-// @version     2.1.6
+// @version     2.1.9
 // @author      LHQ & CHH & ZCX && zagger
 // @license     GPLv3
-// @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)、悬浮球快捷工具
+// @description 禅道助手: 工时统计(工时提醒/每日工时计算)、Bug管理(留存时间标记/一键复制/新标签页打开)、工作流优化(强制工时填写/解决方案提示)
 // @downloadURL https://update.greasyfork.org/scripts/502308/OS-EASY%20%E4%B8%93%E5%B1%9E%E7%A6%85%E9%81%93%E6%A0%87%E8%AE%B0%E5%8A%A9%E6%89%8B.user.js
 // @updateURL https://update.greasyfork.org/scripts/502308/OS-EASY%20%E4%B8%93%E5%B1%9E%E7%A6%85%E9%81%93%E6%A0%87%E8%AE%B0%E5%8A%A9%E6%89%8B.meta.js
 // ==/UserScript==
@@ -27,56 +28,6 @@
 
   $.noConflict(true)(document).ready(async ($) => {
       repairTaskBackLinks(document, window.location.href);
-      // 面板策略管理
-      const panelStrategies = {
-        strategies: {},
-        currentStrategy: null,
-        
-        register(name, strategy) {
-          if (!strategy.title || !strategy.render) {
-            console.error('Strategy must have title and render function');
-            return;
-          }
-          this.strategies[name] = strategy;
-        },
-
-        async switchStrategy(name, content) {
-          // 取消之前策略的所有请求
-          requestManager.clear();
-          
-          // 更新当前策略
-          this.currentStrategy = name;
-          
-          // 清空内容并显示加载状态
-          content.empty().html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
-          
-          try {
-            const strategy = this.strategies[name];
-            const renderPromise = strategy.render(content);
-            
-            // 等待渲染完成
-            await renderPromise;
-            
-            // 如果在渲染过程中切换了策略，则不显示结果
-            if (this.currentStrategy !== name) {
-              content.empty();
-            }
-          } catch (err) {
-            if (err.name !== 'AbortError') {
-              content.html(`<div class="zm-panel-item error">加载失败: ${err.message}</div>`);
-            }
-          }
-        },
-
-        getAll() {
-          return this.strategies;
-        },
-
-        get(name) {
-          return this.strategies[name];
-        }
-      };
-
       // 添加请求管理器
       const requestManager = {
         requests: new Map(),
@@ -93,12 +44,6 @@
             this.requests.get(key).abort();
             this.requests.delete(key);
           }
-        },
-        
-        clear() {
-          // 取消所有请求
-          this.requests.forEach(controller => controller.abort());
-          this.requests.clear();
         }
       };
 
@@ -195,106 +140,6 @@
               else return;
           }
           $("td.text-left a").attr('target', '_blank');
-          
-          // 添加悬浮球和面板样式
-          GM_addStyle(`
-              .zm-float-ball {
-                  position: fixed;
-                  left: 105px;
-                  top: 4px;
-                  width: 36px;
-                  height: 36px;
-                  background: #1890ff;
-                  border-radius: 50%;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  cursor: pointer;
-                  z-index: 9999;
-                  transition: all 0.3s;
-              }
-              .zm-float-ball::after {
-                  content: '';
-                  position: absolute;
-                  width: 100%;
-                  height: 100%;
-                  border-radius: 50%;
-                  border: 2px solid #1890ff;
-                  animation: ripple 1.5s ease-out infinite;
-              }
-              @keyframes ripple {
-                  0% {
-                      transform: scale(1);
-                      opacity: 0.8;
-                  }
-                  100% {
-                      transform: scale(1.5);
-                      opacity: 0;
-                  }
-              }
-              .zm-float-ball:hover {
-                  transform: scale(1.1);
-              }
-              .zm-float-ball i {
-                  color: white;
-                  font-size: 24px;
-              }
-              .zm-panel {
-                  position: fixed;
-                  right: 80px;
-                  top: 50%;
-                  transform: translateY(-50%);
-                  width: 300px;
-                  background: white;
-                  border-radius: 8px;
-                  box-shadow: 0 3px 6px -4px rgba(0,0,0,.12), 0 6px 16px 0 rgba(0,0,0,.08);
-                  z-index: 9998;
-                  display: none;
-              }
-              .zm-panel-header {
-                  padding: 12px 16px;
-                  border-bottom: 1px solid #f0f0f0;
-                  font-weight: bold;
-              }
-              .zm-panel-content {
-                  max-height: 400px;
-                  overflow-y: auto;
-                  scrollbar-width: thin;
-                  scrollbar-color: rgba(0,0,0,.2) transparent;
-              }
-              .zm-panel-content::-webkit-scrollbar {
-                  width: 6px;
-              }
-              .zm-panel-content::-webkit-scrollbar-track {
-                  background: transparent;
-              }
-              .zm-panel-content::-webkit-scrollbar-thumb {
-                  background-color: rgba(0,0,0,.2);
-                  border-radius: 3px;
-                  border: none;
-              }
-              .zm-panel-content::-webkit-scrollbar-thumb:hover {
-                  background-color: rgba(0,0,0,.3);
-              }
-              .zm-panel-item {
-                  padding: 12px 16px;
-                  border-bottom: 1px solid #f0f0f0;
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-              }
-              .zm-panel-item:hover {
-                  background: #f5f5f5;
-              }
-              .zm-hours {
-                  color: #ff4d4f;
-                  font-weight: bold;
-              }
-          `);
-
-          // 创建悬浮球和面板
-          createFloatBall();
       }
 
       // 设置通用的点击事件监听器
@@ -1809,12 +1654,10 @@
           window.addEventListener('message', function (ev) {
             try {
               const data = ev.data || {};
-              if (data.__zdh_action !== 'refresh-bug-view') return;
+              if (ev.origin !== location.origin || data.__zdh_action !== 'refresh-bug-view') return;
               console.log('(zm) 收到 postMessage 请求刷新 Bug 详情页', data);
-              // 收起/隐藏快捷区（兼容内联/悬浮两种 UI）
+              // 收起快捷区，再刷新顶层页面。
               try { $('#zm-bug-inline-panel').hide(); } catch (e) {}
-              try { $('#zm-bug-quick-dock').addClass('collapsed').hide(); } catch (e) {}
-              try { $('#zm-bug-dock-launcher').show(); } catch (e) {}
               setTimeout(function () { location.reload(); }, 120);
             } catch (err) {
               console.warn('(zm) postMessage 处理失败', err);
@@ -1825,11 +1668,221 @@
         }
       })();
 
-      // Bug详情页悬浮快捷区（日志/指派/解决）
-      function setupBugQuickActionDock() {
-          const isIframePage = window.self !== window.top;
+      // 以表单文档和保存结果为准监听，避免把按钮禁用误判成保存成功。
+      function watchBugActionFrame(iframe, onSaved) {
+          const wasInert = !!iframe.inert;
+          iframe.inert = true;
+          let currentDocument = null;
+          let cleanupDocument = () => {};
+          let pending = false;
+          let disposed = false;
+          let bugId = null;
+          let nativeResult = null;
+          const successSelector = '.alert-success, .result-success, .popover-success';
 
-          if ($('#zm-bug-quick-dock').length > 0 || $('#zm-bug-inline-panel').length > 0) {
+          const stopNativeResult = () => {
+              if (!nativeResult) return;
+              nativeResult.frame.removeEventListener('load', nativeResult.inspect);
+              nativeResult = null;
+          };
+
+          const isNativeSaveSuccess = doc => {
+              try {
+                  const payload = JSON.parse(doc.body?.textContent || '');
+                  if (payload?.result === 'success' || (payload?.result == null && payload?.status === 'success')) return true;
+              } catch (e) { /* 禅道 17.4 的原生提交返回 HTML/JavaScript。 */ }
+              const script = Array.from(doc.querySelectorAll('script'), node => node.textContent).join('\n');
+              // 实际服务器的保存成功响应：设置 selfClose，再关闭原生弹窗。
+              // 自定义面板不依赖弹窗 API，识别此完成通知后交给外层刷新。
+              return /(?:parent\.)+\$\s*\.\s*cookie\s*\(\s*(['"])selfClose\1\s*,\s*1\s*\)/.test(script) &&
+                  /(?:parent\.)+\$\s*\.\s*closeModal\s*\(\s*null\s*,\s*(['"])this\1\s*\)/.test(script);
+          };
+
+          const saved = () => {
+              if (disposed) return;
+              dispose();
+              onSaved();
+          };
+
+          const bindDocument = () => {
+              if (disposed) return;
+              try {
+                  const doc = iframe.contentDocument;
+                  // 原生提交可替换当前 iframe 的文档，先读取保存响应再重新绑定。
+                  if (nativeResult?.frame === iframe) {
+                      nativeResult.inspect();
+                      if (disposed) return;
+                  }
+                  // 使用页面原始窗口，确保监听的是禅道而非油猴隔离环境的 XHR。
+                  const frameWin = typeof unsafeWindow === 'undefined' ? iframe.contentWindow :
+                      unsafeWindow.frames[Array.from(iframe.ownerDocument.querySelectorAll('iframe')).indexOf(iframe)] || iframe.contentWindow;
+                  const page = new URL(frameWin.location.href);
+                  const returnedBug = page.pathname.match(/\/bug-view-(\d+)\.html$/);
+                  if (pending && returnedBug && returnedBug[1] === bugId) {
+                      saved();
+                      return;
+                  }
+                  if (!doc || doc === currentDocument) return;
+                  iframe.inert = true;
+                  cleanupDocument();
+                  cleanupDocument = () => {};
+                  currentDocument = doc;
+                  const action = page.pathname.match(/\/(bug-(?:assignTo|resolve)|effort-createForObject-bug)-(\d+)(?:[.-]|$)/);
+                  if (!action) {
+                      iframe.inert = page.href === 'about:blank' || wasInert;
+                      return;
+                  }
+                  bugId = action[2];
+                  let previousSuccess = new Map();
+                  let active = true;
+                  const removers = new Set();
+                  const markPending = () => {
+                      if (!pending) {
+                          previousSuccess = new Map(Array.from(doc.querySelectorAll(successSelector), node => [node, node.textContent]));
+                      }
+                      pending = true;
+                  };
+                  const isSaveRequest = (method, url) => {
+                      try {
+                          const request = new URL(url, page.href);
+                          const route = request.pathname.match(/\/(bug-(?:assignTo|resolve)|effort-createForObject-bug)-(\d+)(?:[.-]|$)/);
+                          return String(method).toUpperCase() === 'POST' && request.origin === page.origin &&
+                              route && route[1] === action[1] && route[2] === action[2];
+                      } catch (e) { return false; }
+                  };
+                  const checkResponse = (status, payload) => {
+                      if (!active || disposed) return;
+                      if (status < 200 || status >= 300) { pending = false; return; }
+                      try {
+                          if (typeof payload === 'string') payload = JSON.parse(payload);
+                          if (payload?.result === 'success' || (payload?.result == null && payload?.status === 'success')) {
+                              saved();
+                          } else if (payload?.result === 'fail' || payload?.status === 'fail') {
+                              pending = false;
+                          }
+                      } catch (e) { /* HTML 响应由页面跳转或成功提示判断。 */ }
+                  };
+                  const click = event => {
+                      if (event.target?.closest?.('#submit, button[type="submit"], input[type="submit"]')) markPending();
+                  };
+                  const submit = event => {
+                      markPending();
+                      const form = event.target;
+                      if (!form?.getAttribute || String(form.method || form.getAttribute('method')).toUpperCase() !== 'POST') return;
+                      stopNativeResult();
+                      const target = form.getAttribute('target') || '_self';
+                      const resultFrame = target === '_self' ? iframe :
+                          Array.from(doc.querySelectorAll('iframe, frame')).find(node => node.name === target || node.id === target);
+                      if (!resultFrame) return;
+                      const actionUrl = new URL(form.action || form.getAttribute('action') || page.href, page.href);
+                      const originalDocument = resultFrame.contentDocument;
+                      const inspect = () => {
+                          if (disposed || !pending) return;
+                          try {
+                              const responseDoc = resultFrame.contentDocument;
+                              const responseUrl = new URL(resultFrame.contentWindow.location.href);
+                              if (!responseDoc || responseDoc === originalDocument || responseUrl.origin !== actionUrl.origin ||
+                                  responseUrl.pathname !== actionUrl.pathname) return;
+                              const success = isNativeSaveSuccess(responseDoc);
+                              stopNativeResult();
+                              if (success) {
+                                  console.log('(zm) 原生表单保存完成，通知刷新主界面');
+                                  saved();
+                              } else {
+                                  pending = false;
+                              }
+                          } catch (err) { console.warn('(zm) 无法读取原生表单响应', err); }
+                      };
+                      nativeResult = { frame: resultFrame, inspect };
+                      resultFrame.addEventListener('load', inspect);
+                  };
+                  doc.addEventListener('click', click, true);
+                  doc.addEventListener('submit', submit, true);
+                  removers.add(() => {
+                      doc.removeEventListener('click', click, true);
+                      doc.removeEventListener('submit', submit, true);
+                      stopNativeResult();
+                  });
+
+                  // 监听原始 XHR，不依赖油猴和页面是否共用同一份 jQuery。
+                  const xhrPrototype = frameWin.XMLHttpRequest?.prototype;
+                  if (xhrPrototype) {
+                      const originalOpen = xhrPrototype.open;
+                      const open = function(method, url, ...args) {
+                          if (isSaveRequest(method, url)) {
+                              markPending();
+                              const complete = () => {
+                                  remove();
+                                  let payload;
+                                  try { payload = this.responseType === 'json' ? this.response : this.responseText; } catch (e) {}
+                                  checkResponse(this.status, payload);
+                              };
+                              const remove = () => {
+                                  this.removeEventListener('loadend', complete);
+                                  removers.delete(remove);
+                              };
+                              this.addEventListener('loadend', complete);
+                              removers.add(remove);
+                          }
+                          return originalOpen.call(this, method, url, ...args);
+                      };
+                      xhrPrototype.open = open;
+                      removers.add(() => { if (xhrPrototype.open === open) xhrPrototype.open = originalOpen; });
+                  }
+
+                  // jQuery Form 的 iframe 上传传输不一定经过 XMLHttpRequest。
+                  const pageJQuery = frameWin.jQuery || frameWin.$;
+                  if (pageJQuery?.fn?.jquery) {
+                      const ajaxSuccess = (event, xhr, settings, data) => {
+                          if (isSaveRequest(settings.type || settings.method, settings.url)) checkResponse(xhr.status || 200, data);
+                      };
+                      pageJQuery(doc).on('ajaxSuccess.zmBugDock', ajaxSuccess);
+                      removers.add(() => pageJQuery(doc).off('ajaxSuccess.zmBugDock', ajaxSuccess));
+                  }
+
+                  const checkSuccess = () => {
+                      if (!pending || disposed) return;
+                      const hasNewSuccess = Array.from(doc.querySelectorAll(successSelector)).some(node =>
+                          !previousSuccess.has(node) || previousSuccess.get(node) !== node.textContent);
+                      if (hasNewSuccess) saved();
+                  };
+                  const observer = new MutationObserver(checkSuccess);
+                  if (doc.body) observer.observe(doc.body, { childList: true, subtree: true, attributes: true, characterData: true });
+                  removers.add(() => observer.disconnect());
+                  cleanupDocument = () => {
+                      active = false;
+                      for (const remove of [...removers]) remove();
+                  };
+                  iframe.inert = wasInert;
+                  checkSuccess();
+              } catch (err) {
+                  console.warn('(zm) 快捷区保存监听暂不可用', err);
+              }
+          };
+
+          function dispose() {
+              disposed = true;
+              clearInterval(readyPoll);
+              iframe.inert = wasInert;
+              stopNativeResult();
+              iframe.removeEventListener('load', bindDocument);
+              window.removeEventListener?.('pagehide', dispose);
+              cleanupDocument();
+          }
+          // load 会等待页面全部资源；提前发现新文档，绑定完成前不开放表单交互。
+          const readyPoll = setInterval(() => {
+              if (iframe.isConnected === false) dispose();
+              else bindDocument();
+          }, 100);
+          window.addEventListener?.('pagehide', dispose, { once: true });
+          iframe.addEventListener('load', bindDocument);
+          bindDocument();
+          return dispose;
+      }
+
+      // Bug详情页快捷区（日志/指派/解决）
+      function setupBugQuickActionDock() {
+          if ($('#zm-bug-inline-panel').length > 0) {
             console.info('(zm) Bug快捷区已存在，跳过重复初始化');
               return;
           }
@@ -1908,7 +1961,7 @@
                         // option 不支持 HTML，放入 title 作为提示
                         opt.title = replaced.replace(/<span style=\"color: .*;\">|<\/span>/g, '');
                         // 显示文本保持可读性（去掉标签）
-                        opt.text = opt.title;
+                        if (opt.text !== opt.title) opt.text = opt.title;
                       } catch (e) {}
                     });
                   };
@@ -1945,22 +1998,14 @@
             }
 
             let inlinePanelRef = null;
-            let dockRef = null;
-            let launcherRef = null;
 
             const closeQuickDockUI = () => {
               if (inlinePanelRef && inlinePanelRef.length) {
                 inlinePanelRef.hide();
               }
-              if (dockRef && dockRef.length) {
-                dockRef.addClass('collapsed').hide();
-              }
-              if (launcherRef && launcherRef.length) {
-                launcherRef.show();
-              }
             };
 
-            // 保存成功后自动刷新当前Bug详情页（兼容内联/悬浮两种快捷区）
+            // 保存成功后自动刷新顶层页面。
             let hasTriggeredBugPageRefresh = false;
             const reloadOuterWindow = (sourceLabel) => {
               try {
@@ -1986,224 +2031,14 @@
               try { location.reload(); } catch (e) { console.warn('(zm) 无法执行 reload', e); }
             };
 
-            const tryRefreshBugPageFromIframe = (iframe, sourceLabel) => {
+            const refreshBugPageAfterSave = () => {
               if (hasTriggeredBugPageRefresh) return;
-
-              try {
-                const frameWin = iframe.contentWindow;
-                const frameDoc = iframe.contentDocument;
-                const path = frameWin?.location?.pathname || '';
-                const href = frameWin?.location?.href || '';
-
-                const returnedToBugView = /bug-view-\d+\.html/.test(path) || /module=bug&method=view/.test(href);
-                const saveSuccessInForm = /\/(bug-assignTo-|bug-resolve-|effort-createForObject-bug-)/.test(path)
-                && !!frameDoc?.querySelector('.alert-success, .result-success, .text-success');
-
-                if (returnedToBugView || saveSuccessInForm) {
-                  hasTriggeredBugPageRefresh = true;
-                  console.log(`(zm) 检测到${sourceLabel}保存完成，自动刷新Bug详情页`);
-                  closeQuickDockUI();
-                  setTimeout(() => reloadOuterWindow(sourceLabel), 120);
-                }
-              } catch (err) {
-                // 忽略跨文档读取异常
-              }
+              hasTriggeredBugPageRefresh = true;
+              closeQuickDockUI();
+              setTimeout(() => reloadOuterWindow('快捷区保存成功'), 120);
             };
 
-            const bindRefreshWatcherForSaveButton = (iframe, sourceLabel) => {
-              try {
-                const frameDoc = iframe.contentDocument;
-                const frameWin = iframe.contentWindow;
-                const path = frameWin?.location?.pathname || '';
-                const isTargetFormPage = /\/(bug-assignTo-|bug-resolve-|effort-createForObject-bug-)/.test(path);
-                if (!frameDoc || !isTargetFormPage) return;
-
-                const bindKey = `${sourceLabel}:${path}`;
-                if (iframe.dataset.zmSubmitWatchKey === bindKey) {
-                  return;
-                }
-                iframe.dataset.zmSubmitWatchKey = bindKey;
-
-                let hasSaveIntent = false;
-
-                const markSaveIntent = () => {
-                  hasSaveIntent = true;
-                  // 避免长期保留旧意图
-                  setTimeout(() => {
-                    hasSaveIntent = false;
-                  }, 15000);
-                };
-
-                const triggerRefresh = () => {
-                  if (hasTriggeredBugPageRefresh) return;
-                  hasTriggeredBugPageRefresh = true;
-                  console.log(`(zm) 检测到${sourceLabel}保存按钮变为disabled，自动刷新Bug详情页`);
-                  closeQuickDockUI();
-                  setTimeout(() => reloadOuterWindow(sourceLabel), 160);
-                };
-
-                const bindButtonObserver = (submitBtn) => {
-                  if (!submitBtn || submitBtn.dataset.zmDisabledObserverBound === '1') {
-                    return;
-                  }
-
-                  submitBtn.dataset.zmDisabledObserverBound = '1';
-
-                  const checkDisabledAndRefresh = () => {
-                    const disabled = submitBtn.disabled || submitBtn.getAttribute('disabled') !== null;
-                    if (hasSaveIntent && disabled) {
-                      triggerRefresh();
-                    }
-                  };
-
-                  // 提交后按钮通常会被置灰，监听属性变化可稳定捕获
-                  const btnObserver = new MutationObserver(checkDisabledAndRefresh);
-                  btnObserver.observe(submitBtn, {
-                    attributes: true,
-                    attributeFilter: ['disabled', 'class', 'aria-disabled', 'data-loading']
-                  });
-
-                  // 兜底轮询，覆盖某些框架不触发 mutation 的场景
-                  const pollId = setInterval(() => {
-                    if (hasTriggeredBugPageRefresh) {
-                      clearInterval(pollId);
-                      return;
-                    }
-                    checkDisabledAndRefresh();
-                  }, 200);
-
-                  setTimeout(() => clearInterval(pollId), 15000);
-                };
-
-                const findSubmitButton = () => frameDoc.querySelector('#submit, button[type="submit"]');
-
-                const bindIfPossible = () => {
-                  const submitBtn = findSubmitButton();
-                  if (submitBtn) {
-                    bindButtonObserver(submitBtn);
-                  }
-                };
-
-                frameDoc.addEventListener('click', (event) => {
-                  const targetBtn = event.target?.closest?.('#submit, button[type="submit"]');
-                  if (targetBtn) {
-                    markSaveIntent();
-                    closeQuickDockUI();
-                    bindButtonObserver(targetBtn);
-                  }
-                }, true);
-
-                frameDoc.addEventListener('submit', () => {
-                  markSaveIntent();
-                  closeQuickDockUI();
-                  bindIfPossible();
-                }, true);
-
-                // 页面结构可能异步渲染，监听节点变化后补绑
-                const docObserver = new MutationObserver(bindIfPossible);
-                if (frameDoc.body) {
-                  docObserver.observe(frameDoc.body, { childList: true, subtree: true });
-                }
-
-                bindIfPossible();
-              } catch (err) {
-                // 忽略跨文档读取异常
-              }
-            };
-
-            // 在指定 document 中增强解决方案下拉/列表的展示（告知每种解决方案是哪个角色填）
-            const augmentResolveInDocument = (doc) => {
-              try {
-                if (!doc) return;
-                const resolveRoot = doc.querySelector('.m-bug-resolve') || doc;
-
-                const updateOptions = () => {
-                  try {
-                    // 支持 chosen 插件渲染的 li，也支持原生 select/option
-                    const lis = resolveRoot.querySelectorAll('.chosen-drop .chosen-results li, .chosen-results li');
-                    lis.forEach(node => {
-                      const raw = node.textContent.trim();
-                      const html = getOwner(raw);
-                      if (html) {
-                        node.innerHTML = html;
-                        node.title = html.replace(/<span style="color: .*;">|<\/span>/g, '');
-                      }
-                    });
-
-                    const opts = resolveRoot.querySelectorAll('select option');
-                    opts.forEach(opt => {
-                      const raw = opt.textContent.trim();
-                      const html = getOwner(raw).replace(/<[^>]+>/g, '');
-                      opt.textContent = html;
-                      opt.title = html;
-                    });
-                  } catch (e) {
-                    // ignore
-                  }
-                };
-
-                // 绑定点击/展示时更新
-                const containers = resolveRoot.querySelectorAll('.chosen-container, .chosen, .chosen-results');
-                containers.forEach(c => {
-                  if (c.__zm_owner_bound) return;
-                  c.__zm_owner_bound = true;
-                  c.addEventListener('click', () => setTimeout(updateOptions, 50));
-                });
-
-                // 直接尝试一次更新（用于已经渲染好的场景）
-                setTimeout(updateOptions, 200);
-              } catch (err) {
-                console.warn('(zm) augmentResolveInDocument failed', err);
-              }
-            };
-
-            // 在执行某个动作前检查是否需要先填工时（needEffort），如果需要则优先打开日志（尽量触发页面原始 a.effort），否则执行回调
-            const doActionWithEffortCheck = (actionKey, proceed) => {
-              try {
-                const parsed = parseBugPage();
-                if (parsed && parsed.needEffort) {
-                  console.log('(zm) detect needEffort before', actionKey);
-                  // 优先尝试点击页面上原始的 a.effort 链接（若还存在）
-                  const nativeEffort = document.querySelector('a.effort') || (actions.find(a => a.key === 'effort') || {}).link || (actions.find(a => a.key === 'effort') || {}).replacedLink;
-                  if (nativeEffort) {
-                    try {
-                      // 支持原生 click 或 jQuery 元素
-                      if (nativeEffort.click) nativeEffort.click();
-                      else $(nativeEffort).trigger('click');
-                    } catch (err) {
-                      try { $(nativeEffort).trigger('click'); } catch (e) {}
-                    }
-                    return;
-                  }
-
-                  // 如果找不到原始链接，尝试切换到内联/悬浮的日志 tab
-                  try {
-                    if (inlinePanelRef && inlinePanelRef.length) {
-                      // 显示并切换到日志 tab
-                      if (typeof switchInlineTab === 'function') switchInlineTab('effort');
-                      if (typeof showInlinePanel === 'function') showInlinePanel('effort');
-                      else toggleInlinePanel && toggleInlinePanel('effort');
-                      return;
-                    }
-                    if (dockRef && dockRef.length) {
-                      showDock && showDock();
-                      switchTab && switchTab('effort');
-                      return;
-                    }
-                  } catch (err) {
-                    // ignore and fallthrough
-                  }
-                }
-              } catch (err) {
-                console.warn('(zm) doActionWithEffortCheck error', err);
-              }
-
-              // 默认执行动作
-              try { proceed && proceed(); } catch (err) { console.warn('(zm) action proceed failed', err); }
-            };
-
-          // iframe页使用内联快捷区（放在日志/指派/解决按钮左侧）
-          if (isIframePage) {
+          // 所有 Bug 详情页统一使用贴近底部操作栏的快捷面板。
               GM_addStyle(`
                 #zm-bug-inline-panel {
                   display: none;
@@ -2214,7 +2049,8 @@
                   background: #fff;
                   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
                   overflow: hidden;
-                  min-height: 320px;
+                  min-height: min(320px, calc(100vh - 16px));
+                  max-height: calc(100vh - 16px);
                   z-index: 999996;
                 }
 
@@ -2243,7 +2079,7 @@
 
                 #zm-bug-inline-panel .zm-inline-pane {
                   display: none;
-                  height: 600px;
+                  height: min(600px, calc(100vh - 52px));
                 }
 
                 #zm-bug-inline-panel .zm-inline-pane.active {
@@ -2260,7 +2096,8 @@
               actions.forEach(item => {
                 const clonedLink = item.link.clone(false);
                 clonedLink
-                  .removeAttr('target data-toggle data-width data-height data-remote data-load')
+                  .removeClass('iframe')
+                  .removeAttr('target onclick data-toggle data-target data-width data-height data-remote data-load')
                   .attr('href', 'javascript:void(0)')
                   .attr('data-zm-inline-key', item.key)
                   .attr('title', `${item.title}（已接入下方快捷区）`);
@@ -2290,8 +2127,6 @@
               inlinePanelRef = inlinePanel;
 
                 inlinePanel.find('iframe').on('load', function () {
-                  tryRefreshBugPageFromIframe(this, '内联快捷区');
-                  bindRefreshWatcherForSaveButton(this, '内联快捷区');
                   try { enhanceResolveFormInIframe(this); } catch (e) {}
                 });
 
@@ -2305,11 +2140,7 @@
                   actions[actions.length - 1].replacedLink.after(inlineToggleBtn);
                 }
 
-                if (rightToolbar.length > 0) {
-                  $('body').append(inlinePanel);
-                } else {
-                  $('body').append(inlinePanel);
-                }
+                $('body').append(inlinePanel);
 
                 // 新按钮插入完成后，再删除原始a按钮，避免触发禅道原弹层
                 actions.forEach(item => item.link.remove());
@@ -2364,7 +2195,7 @@
               actions.forEach(item => {
                   item.replacedLink.on('click.zmBugDock', function (e) {
                       e.preventDefault();
-                      e.stopPropagation();
+                      e.stopImmediatePropagation();
                     try {
                       const { needEffort } = parseBugPage() || {};
                       if (needEffort && item.key !== 'effort') {
@@ -2380,391 +2211,23 @@
 
                 inlinePanel.find('#zm-bug-inline-collapse').on('click', function (e) {
                   e.preventDefault();
-                  e.stopPropagation();
+                  e.stopImmediatePropagation();
                   toggleInlinePanel();
                 });
 
                 $('#zm-bug-inline-toggle').on('click.zmBugDock', function (e) {
                   e.preventDefault();
-                  e.stopPropagation();
+                  e.stopImmediatePropagation();
                   toggleInlinePanel();
                 });
 
                 // ensure resolve form augmentation when dock iframes load
                 inlinePanel.find('iframe').each(function() {
+                  watchBugActionFrame(this, refreshBugPageAfterSave);
                   try { enhanceResolveFormInIframe(this); } catch (e) {}
                 });
 
-              console.log('(zm) 已启用Bug详情页内联快捷区(iframe)');
-              return;
-          }
-
-          GM_addStyle(`
-            #zm-bug-quick-dock.zm-bug-dock {
-              position: fixed;
-              right: 16px;
-              bottom: 16px;
-              width: min(560px, calc(100vw - 24px));
-              height: min(560px, 72vh);
-              background: #fff;
-              border: 1px solid #d9d9d9;
-              border-radius: 10px;
-              box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
-              z-index: 999999;
-              overflow: hidden;
-              display: flex;
-              flex-direction: column;
-            }
-
-            #zm-bug-quick-dock.zm-bug-dock.dragging {
-              opacity: 0.92;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-header {
-              height: 42px;
-              padding: 0 12px;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              background: linear-gradient(135deg, #1f4ea3 0%, #3268be 100%);
-              color: #fff;
-              cursor: move;
-              user-select: none;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-title {
-              display: flex;
-              align-items: center;
-              font-size: 13px;
-              font-weight: bold;
-              letter-spacing: 0.3px;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-title .icon {
-              margin-right: 6px;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-controls {
-              display: flex;
-              align-items: center;
-              gap: 10px;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-controls .icon {
-              cursor: pointer;
-              font-size: 13px;
-              opacity: 0.88;
-              transition: opacity 0.2s;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-controls .icon:hover {
-              opacity: 1;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-tabs {
-              display: flex;
-              border-bottom: 1px solid #e8e8e8;
-              background: #fafafa;
-              flex-shrink: 0;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-tab {
-              flex: 1;
-              border: none;
-              border-right: 1px solid #ededed;
-              background: transparent;
-              color: #666;
-              height: 38px;
-              font-size: 13px;
-              cursor: pointer;
-              transition: all 0.2s;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 6px;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-tab:last-child {
-              border-right: none;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-tab:hover {
-              background: #f0f5ff;
-              color: #1f4ea3;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-tab.active {
-              background: #fff;
-              color: #1f4ea3;
-              font-weight: bold;
-              box-shadow: inset 0 -2px 0 #1f4ea3;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-body {
-              position: relative;
-              flex: 1;
-              min-height: 220px;
-              background: #fff;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-pane {
-              display: none;
-              position: absolute;
-              inset: 0;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-pane.active {
-              display: block;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-pane iframe {
-              width: 100%;
-              height: 100%;
-              border: 0;
-              background: #fff;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-loading {
-              display: none;
-              position: absolute;
-              inset: 0;
-              background: rgba(255, 255, 255, 0.84);
-              align-items: center;
-              justify-content: center;
-              color: #1f4ea3;
-              font-size: 13px;
-              font-weight: bold;
-            }
-
-            #zm-bug-quick-dock .zm-bug-dock-pane.loading .zm-bug-dock-loading {
-              display: flex;
-            }
-
-            #zm-bug-quick-dock.collapsed {
-              width: 220px;
-              height: 42px;
-            }
-
-            #zm-bug-quick-dock.collapsed .zm-bug-dock-tabs,
-            #zm-bug-quick-dock.collapsed .zm-bug-dock-body {
-              display: none;
-            }
-
-            #zm-bug-dock-launcher {
-              position: fixed;
-              right: 16px;
-              bottom: 16px;
-              height: 40px;
-              padding: 0 14px;
-              border: 0;
-              border-radius: 20px;
-              background: linear-gradient(135deg, #1f4ea3 0%, #3268be 100%);
-              color: #fff;
-              cursor: pointer;
-              box-shadow: 0 6px 14px rgba(31, 78, 163, 0.35);
-              z-index: 999998;
-              font-size: 13px;
-              font-weight: bold;
-              display: none;
-            }
-
-            #zm-bug-dock-launcher:hover {
-              filter: brightness(1.05);
-            }
-
-            @media (max-width: 1100px) {
-              #zm-bug-quick-dock.zm-bug-dock {
-                right: 8px;
-                bottom: 8px;
-                width: calc(100vw - 16px);
-                height: 68vh;
-              }
-
-              #zm-bug-dock-launcher {
-                right: 8px;
-                bottom: 8px;
-              }
-            }
-          `);
-
-          const tabsHtml = actions.map(item => `
-            <button type="button" class="zm-bug-dock-tab${item.key === activeKey ? ' active' : ''}" data-key="${item.key}">
-              <i class="icon ${item.icon}"></i>${item.title}
-            </button>
-          `).join('');
-
-          const panesHtml = actions.map(item => `
-            <div class="zm-bug-dock-pane${item.key === activeKey ? ' active loading' : ''}" data-key="${item.key}">
-              <iframe data-src="${item.href}" src="${item.key === activeKey ? item.href : 'about:blank'}" loading="eager"></iframe>
-              <div class="zm-bug-dock-loading">${item.title}加载中...</div>
-            </div>
-          `).join('');
-
-          const dock = $(`
-            <div id="zm-bug-quick-dock" class="zm-bug-dock">
-              <div class="zm-bug-dock-header">
-                <div class="zm-bug-dock-title"><i class="icon icon-magic"></i><span>Bug快捷操作</span></div>
-                <div class="zm-bug-dock-controls">
-                  <i class="icon icon-refresh zm-bug-dock-refresh" title="刷新当前"></i>
-                  <i class="icon icon-minus zm-bug-dock-collapse" title="收起/展开"></i>
-                  <i class="icon icon-close zm-bug-dock-close" title="隐藏"></i>
-                </div>
-              </div>
-              <div class="zm-bug-dock-tabs">${tabsHtml}</div>
-              <div class="zm-bug-dock-body">${panesHtml}</div>
-            </div>
-          `).appendTo('body');
-          dockRef = dock;
-
-          const launcher = $('<button type="button" id="zm-bug-dock-launcher">Bug快捷操作</button>').appendTo('body');
-          launcherRef = launcher;
-
-          const buildFrameSrc = (src, force = false) => {
-              if (!force) {
-                  return src;
-              }
-              const separator = src.includes('?') ? '&' : '?';
-              return `${src}${separator}_=${Date.now()}`;
-          };
-
-          const loadFrame = (key, force = false) => {
-              const pane = dock.find(`.zm-bug-dock-pane[data-key="${key}"]`);
-              if (!pane.length) return;
-
-              const iframe = pane.find('iframe');
-              const src = iframe.attr('data-src');
-              if (!src) return;
-
-              const currentSrc = iframe.attr('src');
-              if (!force && currentSrc && currentSrc !== 'about:blank') {
-                  return;
-              }
-
-              pane.addClass('loading');
-              iframe.attr('src', buildFrameSrc(src, force));
-          };
-
-          const switchTab = (key) => {
-              dock.find('.zm-bug-dock-tab').removeClass('active');
-              dock.find(`.zm-bug-dock-tab[data-key="${key}"]`).addClass('active');
-              dock.find('.zm-bug-dock-pane').removeClass('active');
-              dock.find(`.zm-bug-dock-pane[data-key="${key}"]`).addClass('active');
-              loadFrame(key);
-              localStorage.setItem('zm-bug-dock-active', key);
-          };
-
-          const showDock = () => {
-              dock.show().removeClass('collapsed');
-              launcher.hide();
-          };
-
-          dock.find('iframe').on('load', function () {
-              $(this).closest('.zm-bug-dock-pane').removeClass('loading');
-              tryRefreshBugPageFromIframe(this, '悬浮快捷区');
-              bindRefreshWatcherForSaveButton(this, '悬浮快捷区');
-          });
-
-          dock.find('.zm-bug-dock-tab').on('click', function () {
-              switchTab($(this).data('key'));
-          });
-
-          dock.find('.zm-bug-dock-refresh').on('click', function (e) {
-              e.stopPropagation();
-              const currentKey = dock.find('.zm-bug-dock-tab.active').data('key');
-              if (currentKey) {
-                  loadFrame(currentKey, true);
-              }
-          });
-
-          dock.find('.zm-bug-dock-collapse').on('click', function (e) {
-              e.stopPropagation();
-              dock.toggleClass('collapsed');
-          });
-
-          dock.find('.zm-bug-dock-close').on('click', function (e) {
-              e.stopPropagation();
-              dock.hide();
-              launcher.show();
-          });
-
-          launcher.on('click', function () {
-              showDock();
-          });
-
-          actions.forEach((item, idx) => {
-              item.link.attr('title', `${item.title}（已接入悬浮快捷区）`);
-              item.link.on('click.zmBugDock', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                // 在触发悬浮区前先做工时检查
-                doActionWithEffortCheck(item.key, function() {
-                showDock();
-                switchTab(item.key);
-                });
-              });
-
-              if (item.key !== activeKey) {
-                  setTimeout(() => loadFrame(item.key), 350 + idx * 350);
-              }
-          });
-
-          // 允许拖动位置，避免遮挡原始页面内容
-          let isDragging = false;
-          let startX = 0;
-          let startY = 0;
-          let startLeft = 0;
-          let startTop = 0;
-
-          dock.find('.zm-bug-dock-header').on('pointerdown', function (e) {
-              if ($(e.target).closest('.zm-bug-dock-controls').length > 0) {
-                  return;
-              }
-
-              const rect = dock[0].getBoundingClientRect();
-              isDragging = true;
-              startX = e.clientX;
-              startY = e.clientY;
-              startLeft = rect.left;
-              startTop = rect.top;
-
-              dock.addClass('dragging').css({
-                  left: `${startLeft}px`,
-                  top: `${startTop}px`,
-                  right: 'auto',
-                  bottom: 'auto'
-              });
-
-              e.preventDefault();
-          });
-
-          $(document).on('pointermove.zmBugDock', function (e) {
-              if (!isDragging) {
-                  return;
-              }
-
-              const width = dock.outerWidth() || 0;
-              const height = dock.outerHeight() || 0;
-              const maxLeft = Math.max(window.innerWidth - width - 8, 8);
-              const maxTop = Math.max(window.innerHeight - height - 8, 8);
-
-              const nextLeft = Math.min(Math.max(startLeft + e.clientX - startX, 8), maxLeft);
-              const nextTop = Math.min(Math.max(startTop + e.clientY - startY, 8), maxTop);
-
-              dock.css({
-                  left: `${nextLeft}px`,
-                  top: `${nextTop}px`
-              });
-          });
-
-          $(document).on('pointerup.zmBugDock pointercancel.zmBugDock', function () {
-              if (!isDragging) {
-                  return;
-              }
-              isDragging = false;
-              dock.removeClass('dragging');
-          });
-
-          console.log('(zm) 已启用Bug详情页悬浮快捷区');
+              console.log('(zm) 已启用Bug详情页统一快捷区');
       }
 
       // 设置Bug详情页功能
@@ -3276,337 +2739,6 @@
           return new DOMParser().parseFromString(decoder.decode(arrayBuffer), 'text/html');
       }
 
-      // 修改面板创建代码
-      async function createFloatBall() {
-          // 检查是否在登录页面
-          if (/user-login|file-read/.test(window.location.pathname)) {
-              return;
-          }
-
-          // 检查是否在iframe中
-          if (window.self !== window.top) {
-              return;
-          }
-
-          // 检查是否已存在悬浮球
-          if ($('.zm-float-ball').length > 0) {
-              return;
-          }
-
-          // 添加拖动相关样式
-          GM_addStyle(`
-              .zm-float-ball {
-                  user-select: none;
-                  touch-action: none;
-                  transition: all 0.3s;
-                  z-index: 9999;
-              }
-              .zm-float-ball.dragging {
-                  transition: none;
-                  opacity: 0.8;
-              }
-              .zm-panel {
-                  z-index: 9998;
-              }
-          `);
-
-          const floatBall = $(`
-              <div class="zm-float-ball">
-                  <i class="icon icon-zentao"></i>
-              </div>
-          `).appendTo('body');
-
-          // 创建带标签页的面板
-          const panel = $(`
-            <div class="zm-panel">
-              <div class="zm-panel-header">
-                <div class="zm-panel-tabs">
-                  <span class="zm-panel-tab active" data-strategy="workHours">
-                    <i class="icon icon-time"></i>工时提醒
-                  </span>
-                  <span class="zm-panel-tab" data-strategy="myBugs">
-                    <i class="icon icon-bug"></i>Bug统计
-                  </span>
-                </div>
-                <i class="icon icon-refresh" style="float: right; cursor: pointer; font-size: 14px;"></i>
-              </div>
-              <div class="zm-panel-content"></div>
-            </div>
-          `).appendTo('body');
-
-          // 从 localStorage 获取上次选中的面板
-          let currentStrategy = localStorage.getItem('zm-panel-active') || 'workHours';
-          
-          // 初始化激活状态
-          panel.find('.zm-panel-tab').removeClass('active');
-          panel.find(`[data-strategy="${currentStrategy}"]`).addClass('active');
-
-          // 标签切换逻辑
-          panel.find('.zm-panel-tab').click(async function() {
-            const strategyName = $(this).data('strategy');
-            // 避免重复加载相同策略
-            if (strategyName === panelStrategies.currentStrategy) return;
-
-            panel.find('.zm-panel-tab').removeClass('active');
-            $(this).addClass('active');
-            
-            // 保存当前选中的面板到 localStorage
-            localStorage.setItem('zm-panel-active', strategyName);
-            currentStrategy = strategyName; // 更新当前策略
-
-            // 使用新的切换方法
-            await panelStrategies.switchStrategy(strategyName, panel.find('.zm-panel-content'));
-            if (panel.is(':visible')) {
-                updatePanelPosition();
-            }
-          });
-
-          // 初始加载内容
-          await panelStrategies.switchStrategy(currentStrategy, panel.find('.zm-panel-content'));
-
-          // 修改刷新按钮事件处理
-          panel.find('.icon-refresh').click(
-            debounce(async function(e) {
-              e.stopPropagation();
-              
-              // 刷新时取消所有进行中的请求
-              requestManager.clear();
-              
-              const refreshIcon = $(this);
-              refreshIcon.css({
-                'transform': 'rotate(360deg)',
-                'transition': 'transform 0.5s'
-              });
-              
-              const strategy = panelStrategies.get(currentStrategy);
-              await strategy.render(panel.find('.zm-panel-content'));
-              if (panel.is(':visible')) {
-                  updatePanelPosition();
-              }
-              
-              setTimeout(() => {
-                refreshIcon.css({
-                  'transform': 'rotate(0deg)',
-                  'transition': 'none'
-                });
-              }, 500)
-            }, 300) // 300ms 的防抖延迟
-          );
-
-          // 修改拖动相关变量
-          let isDragging = false;
-          let startX, startY;
-          let initialLeft, initialTop;
-          const margin = 20;
-          const dragThreshold = 5;
-          let hasDragged = false;
-
-          // 更新位置的动画函数
-          function updatePosition(mouseX, mouseY) {
-              if (!isDragging) return;
-
-              // 计算位移
-              const deltaX = mouseX - startX;
-              const deltaY = mouseY - startY;
-              
-              // 计算新位置
-              let left = initialLeft + deltaX;
-              let top = initialTop + deltaY;
-              
-              // 边界限制
-              const maxX = window.innerWidth - floatBall.outerWidth();
-              const maxY = window.innerHeight - floatBall.outerHeight();
-              
-              left = Math.max(0, Math.min(left, maxX));
-              top = Math.max(0, Math.min(top, maxY));
-              
-              floatBall.css({
-                  left: left + 'px',
-                  top: top + 'px',
-                  right: 'auto'
-              });
-
-              // 实时更新面板位置
-              if (panel.is(':visible')) {
-                  updatePanelPosition();
-              }
-          }
-
-          // 修改 pointer events 处理
-          floatBall[0].addEventListener('pointerdown', function(e) {
-              isDragging = true;
-              hasDragged = false;
-              floatBall.addClass('dragging');
-              
-              // 立即隐藏面板，不使用动画
-              if (panel.is(':visible')) {
-                  panel.hide();
-                  $('.zm-panel-content').empty();
-              }
-              
-              this.setPointerCapture(e.pointerId);
-              
-              // 记录初始位置
-              startX = e.clientX;
-              startY = e.clientY;
-              const rect = floatBall[0].getBoundingClientRect();
-              initialLeft = rect.left;
-              initialTop = rect.top;
-              
-              e.preventDefault();
-          });
-
-          document.addEventListener('pointermove', function(e) {
-              if (!isDragging) return;
-              if (Math.abs(e.clientX - startX) > dragThreshold || Math.abs(e.clientY - startY) > dragThreshold) {
-                  hasDragged = true;
-              }
-              updatePosition(e.clientX, e.clientY);
-              e.preventDefault();
-          });
-
-          document.addEventListener('pointerup', function(e) {
-              if (!isDragging) return;
-              isDragging = false;
-              floatBall.removeClass('dragging');
-              try {
-                  floatBall[0].releasePointerCapture(e.pointerId);
-              } catch (err) {
-                  // Ignore PointerCapture errors in some browsers.
-              }
-          });
-
-          // 防止文本选择和其他默认行为
-          $(document).on('selectstart dragstart', function(e) {
-              if (isDragging) {
-                  e.preventDefault();
-                  return false;
-              }
-          });
-
-          // 添加一个变量来追踪面板状态
-          let isPanelVisible = false;
-
-          // 修改点击悬浮球显示面板的代码
-          floatBall.click(async function(e) {
-              if (hasDragged) return;
-              
-              e.stopPropagation();
-              
-              if (!isPanelVisible) {
-                  // 显示面板时取消所有进行中的请求
-                  requestManager.clear();
-                  
-                  panel.css('opacity', 0).show();
-                  updatePanelPosition();
-                  panel.animate({ opacity: 1 }, 200);
-                  isPanelVisible = true;
-                  
-                  const strategy = panelStrategies.get(currentStrategy);
-                  await strategy.render(panel.find('.zm-panel-content'));
-                  updatePanelPosition();
-              } else {
-                  panel.fadeOut(200, function() {
-                      $('.zm-panel-content').empty();
-                      isPanelVisible = false;
-                  });
-              }
-          });
-
-          // 更新面板位置函数优化
-          function updatePanelPosition() {
-              const ballRect = floatBall[0].getBoundingClientRect();
-              const panelWidth = panel.outerWidth();
-              const panelHeight = panel.outerHeight();
-              const windowWidth = window.innerWidth;
-              const windowHeight = window.innerHeight;
-              const gap = 10;
-              
-              // 计算各个方向的可用空间
-              const leftSpace = ballRect.left;
-              const rightSpace = windowWidth - ballRect.right;
-              const topSpace = ballRect.top;
-              const bottomSpace = windowHeight - ballRect.bottom;
-              
-              // 水平位置计算
-              let left;
-              const preferRight = rightSpace >= leftSpace;
-              if (rightSpace >= panelWidth + gap || (preferRight && rightSpace > 0)) {
-                  left = ballRect.right + gap;
-              } else if (leftSpace >= panelWidth + gap) {
-                  left = ballRect.left - panelWidth - gap;
-              } else {
-                  left = preferRight ? (windowWidth - panelWidth - gap) : gap;
-              }
-              left = Math.max(gap, Math.min(left, windowWidth - panelWidth - gap));
-
-              
-              
-              // 垂直位置计算
-              let top;
-              const preferBottom = bottomSpace >= topSpace;
-              if (bottomSpace >= panelHeight + gap || (preferBottom && bottomSpace > 0)) {
-                  top = ballRect.bottom + gap;
-              } else if (topSpace >= panelHeight + gap) {
-                  top = ballRect.top - panelHeight - gap;
-              } else {
-                  top = preferBottom ? (windowHeight - panelHeight - gap) : gap;
-              }
-              top = Math.max(gap, Math.min(top, windowHeight - panelHeight - gap));
-
-              
-              
-              panel.css({
-                  left: left + 'px',
-                  top: top + 'px',
-                  transform: 'none'
-              });
-          }
-
-          // 监听悬浮球位置变化
-          const observer = new MutationObserver(() => {
-              if (panel.is(':visible')) {
-                  updatePanelPosition();
-              }
-          });
-          
-          observer.observe(floatBall[0], {
-              attributes: true,
-              attributeFilter: ['style']
-          });
-
-          // Update position when panel size changes after content loads.
-          if (window.ResizeObserver) {
-              const panelSizeObserver = new ResizeObserver(() => {
-                  if (panel.is(':visible')) {
-                      updatePanelPosition();
-                  }
-              });
-              panelSizeObserver.observe(panel[0]);
-          } else {
-              const panelContentObserver = new MutationObserver(() => {
-                  if (panel.is(':visible')) {
-                      updatePanelPosition();
-                  }
-              });
-              panelContentObserver.observe(panel.find('.zm-panel-content')[0], {
-                  childList: true,
-                  subtree: true,
-                  characterData: true
-              });
-          }
-
-          // 点击其他区域隐藏面板时也需要更新状态
-          $(document).click(function(e) {
-              if (!$(e.target).closest('.zm-panel').length) {
-                  panel.fadeOut(200, function() {
-                      $('.zm-panel-content').empty();
-                      isPanelVisible = false;
-                  });
-              }
-          });
-      }
-
       // 数据获取策略
       const dataStrategies = {
         strategies: {},
@@ -3628,85 +2760,6 @@
           return await strategy.fetch(...args);
         }
       };
-
-      // 修改数据获取策略
-      dataStrategies.register('workHours', {
-        async fetch() {
-          try {
-            const controller = new AbortController();
-            requestManager.register('workHours', controller);
-            
-            setCookie('pagerMyEffort', 100);
-            
-            const response = await fetchZenTao('/my-effort-all-date_desc-1000000-100-1.json', {
-              signal: controller.signal
-            });
-            const text = await response.text(); // 先获取文本响应
-            
-            // 尝试解析 JSON
-            let rawData;
-            try {
-              rawData = JSON.parse(text);
-            } catch (e) {
-              throw new Error('Invalid JSON response');
-            }
-            
-            // 确保数据格式正确
-            if (!rawData.data) {
-              throw new Error('Invalid data format');
-            }
-            
-            const data = JSON.parse(rawData.data);
-            const efforts = data.efforts;
-            
-            // 获取日期范围
-            const startDate = new Date(efforts[efforts.length - 1].date);
-            const endDate = new Date(efforts[0].date);
-            
-            // 获取周期内的工作日
-            const workdays = workdayCn.getWorkdaysBetween(startDate, endDate);
-            
-            // 计算每天的工时
-            const dailyHours = new Map();
-            efforts.forEach(effort => {
-                const date = effort.date;
-                const hours = parseFloat(effort.consumed);
-                const currentHours = dailyHours.get(date) || 0;
-                // 使用 toFixed(2) 确保精度，避免浮点数运算误差
-                dailyHours.set(date, parseFloat((currentHours + hours).toFixed(2)));
-            });
-            
-            // 获取用户已删除的日期列表和请假日期列表
-            const removedDates = JSON.parse(localStorage.getItem('zm-removed-work-hours-dates') || '[]');
-            const leaveDates = JSON.parse(localStorage.getItem('zm-leave-dates') || '[]');
-            
-            // 找出工时不足的日期并按时间逆序排序（排除用户已删除的日期和请假日期）
-            return workdays
-              .map(date => date.toISOString().split('T')[0])
-              .filter(date => {
-                  const hours = dailyHours.get(date) || 0;
-                  return hours < 8 && !removedDates.includes(date) && !leaveDates.includes(date);
-              })
-              .map(date => {
-                const hours = dailyHours.get(date);
-                return {
-                  date,
-                  hours: hours ? Number(hours.toFixed(2)) : 0
-                }
-              })
-              .sort((a, b) => new Date(b.date) - new Date(a.date));
-          } catch (err) {
-            if (err.name === 'AbortError') {
-              console.log('Work hours request aborted');
-              return [];
-            }
-            console.error('Error fetching work hours:', err);
-            throw err;
-          } finally {
-            requestManager.requests.delete('workHours');
-          }
-        }
-      });
 
       // 添加本周工时检测策略
       dataStrategies.register('weeklyWorkHours', {
@@ -3816,646 +2869,5 @@
           }
         }
       });
-
-      // 修改Bug数据获取策略
-      dataStrategies.register('bugs', {
-        async fetch() {
-          try {
-            const controller = new AbortController();
-            requestManager.register('bugs', controller);
-            
-            const userName = localStorage.getItem('zm-username');
-            if (!userName) return [];
-
-            const response = await fetchZenTao('/my-work-bug.html', {
-              signal: controller.signal
-            });
-            const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-            const bugs = Array.from(doc.querySelectorAll('tr')).slice(1);
-            
-            const bugDetails = (await Promise.all(
-              bugs.map(async tr => {
-                const id = tr.cells[0].textContent.trim();
-                const title = tr.cells[4].textContent.trim();
-                const status = tr.cells[6].textContent.trim();
-                
-                const detailResponse = await fetchZenTao(`/bug-view-${id}.json`, {
-                  signal: controller.signal
-                });
-                const rawDetail = await detailResponse.json();
-                const detail = JSON.parse(rawDetail.data);
-                
-                const users = detail.users || {};
-                const { assignedDate, resolvedBy, assignedTo } = detail.bug;
-                const actions = Object.values(detail.actions).sort((a, b) => 
-                  new Date(a.date) - new Date(b.date)
-                );
-                // 确定开始时间
-                let startDate = null;
-                if (actions.length === 1) {
-                  // 只有一条记录，且初始指派给自己
-                  if (users[assignedTo] === userName) {
-                    startDate = assignedDate;
-                  }
-                } else {
-                  // 检查历史记录中是否存在从自己转出的情况
-                  const hasAssignFromMe = actions.some(action => {
-                    if (!action.history) return false;
-                    return action.history.some(h => 
-                      h.field === 'assignedTo' && 
-                      users[h.old] === userName
-                    );
-                  });
-
-                  if (hasAssignFromMe) {
-                    // 历史记录中存在从自己转出的情况
-                    // 使用第一条记录的时间
-                    startDate = actions[0].date;
-                  } else {
-                    // 查找指派给自己的操作
-                    const assignToMeAction = actions.find(a => users[a.extra] === userName);
-                    if (assignToMeAction) {
-                      startDate = assignToMeAction.date;
-                    } else if (users[assignedTo] === userName) {
-                      // 最后才考虑初始指派
-                      startDate = actions[0].date;
-                    }
-                  }
-                }
-                // 如果没有找到开始时间，说明bug不属于当前用户
-                if (!startDate) {
-                  return null;
-                }
-                
-                
-                const start = new Date(startDate);
-                const {str: timeStr, h: hours} = timeRangeStr(start);
-                
-                // 检查是否有自己的操作记录
-                const hasMyAction = actions.some(action => 
-                  users[action.actor] === userName
-                );
-
-                return {
-                  id,
-                  title,
-                  status,
-                  timeStr,
-                  hours,
-                  resolvedBy: users[resolvedBy] || resolvedBy,
-                  confirmed: detail.bug.confirmed === '1',
-                  hasMyAction,
-                  assignedTo: users[assignedTo]
-                };
-              })
-            )).filter(Boolean);
-
-            // 对bugs进行分类
-            return {
-              new24h: bugDetails.filter(bug => 
-                bug.hours <= 24  // 24小时内新增
-              ).sort((a, b) => b.hours - a.hours),  // 按时长降序
-              unconfirmed: bugDetails.filter(bug => 
-                bug.assignedTo === userName && !bug.confirmed
-              ).sort((a, b) => b.hours - a.hours),
-              untreated36h: bugDetails.filter(bug => 
-                bug.hours >= 36 && bug.hours < 72 && (!bug.confirmed || !bug.hasMyAction)
-              ).sort((a, b) => b.hours - a.hours),
-              unresolved72h: bugDetails.filter(bug => 
-                bug.hours >= 72 && !bug.resolvedBy
-              ).sort((a, b) => b.hours - a.hours),
-              pendingResolve: bugDetails.filter(bug => 
-                bug.confirmed && bug.hours > 24 && bug.hours < 72
-              ).sort((a, b) => b.hours - a.hours)
-            };
-            
-          } catch (err) {
-            if (err.name === 'AbortError') {
-              console.log('Bugs request aborted');
-            }
-            console.error('Error fetching bug details:', err);
-            throw err;
-          } finally {
-            requestManager.requests.delete('bugs');
-          }
-        }
-      });
-
-       // 虚拟滚动组件
-       class VirtualScroll {
-         constructor(options) {
-           const defaultOptions = {
-             itemHeight: 32,
-             visibleCount: 10,
-             bufferSize: 5,
-             container: null,
-             data: [],
-             renderItem: null,
-             className: '',
-             maxHeight: 360 // 添加最大高度限制
-           };
-           
-           this.options = { ...defaultOptions, ...options };
-           this.init();
-         }
-
-         init() {
-           const { itemHeight, visibleCount, data, container, className, maxHeight } = this.options;
-           
-           // 计算实际需要的高度，不超过maxHeight
-           const totalHeight = data.length * itemHeight;
-           const actualHeight = Math.min(totalHeight, maxHeight);
-           
-           this.$container = $(`
-             <div class="zm-virtual-list ${className}" style="height: ${actualHeight}px; overflow-y: auto;">
-               <div class="zm-virtual-content" style="position: relative;"></div>
-             </div>
-           `);
-           
-           this.$virtualContent = this.$container.find('.zm-virtual-content');
-           this.$virtualContent.css('height', `${totalHeight}px`);
-           
-           $(container).append(this.$container);
-           
-           this.$container.on('scroll', debounce(() => {
-             requestAnimationFrame(() => {
-               this.render();
-             });
-           }, 16));
-           
-           this.render();
-         }
-
-         render() {
-           const { itemHeight, bufferSize, data, renderItem } = this.options;
-           const scrollTop = this.$container.scrollTop();
-           
-           const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - bufferSize);
-           const endIndex = Math.min(
-             data.length,
-             Math.ceil((scrollTop + this.$container.height()) / itemHeight) + bufferSize
-           );
-           
-           this.$virtualContent.empty();
-           
-           for (let i = startIndex; i < endIndex; i++) {
-             const itemContent = renderItem(data[i], i);
-             const $item = $('<div>', {
-               class: 'zm-panel-item',
-               css: {
-                 position: 'absolute',
-                 top: `${i * itemHeight}px`,
-                 width: '100%',
-                 height: `${itemHeight}px`
-               }
-             }).html(itemContent);
-             
-             this.$virtualContent.append($item);
-           }
-         }
-
-         updateData(newData) {
-           this.options.data = newData;
-           this.$virtualContent.css('height', `${newData.length * this.options.itemHeight}px`);
-           this.render();
-         }
-
-         destroy() {
-           this.$container.remove();
-         }
-       }
-
-       // 工时提醒面板
-       const workHoursPanel = {
-         strategy: {
-           title: '工时提醒',
-           icon: 'icon-time',
-           async render(content) {
-             try {
-               content.html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
-               
-               const insufficientDays = await dataStrategies.fetch('workHours');
-               
-               content.empty();
-               if (!insufficientDays || insufficientDays.length === 0) {
-                 content.append('<div class="zm-panel-item">所有工作日工时已填写完整 👍</div>');
-                 return;
-               }
-
-               new VirtualScroll({
-                 container: content,
-                 data: insufficientDays,
-                 className: 'work-hours',
-                 itemHeight: 48,
-                 maxHeight: 360, // 限制最大高度
-                 renderItem: (day) => 
-                   $('<div>').append(
-                     $('<span>').text(day.date),
-                     $('<span>').addClass('zm-hours').text(`${day.hours}h / 8h`)
-                   ).html()
-               });
-               
-             } catch (err) {
-               if (err.name === 'AbortError') {
-                 content.html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
-                 return;
-               }
-               content.html(`<div class="zm-panel-item error">加载失败: ${err.message}</div>`);
-             }
-           }
-         },
-         
-         style: `
-           .zm-virtual-list.work-hours .zm-panel-item {
-             line-height: 40px;
-             padding: 4px 16px;
-             display: flex;
-             justify-content: space-between;
-             align-items: center;
-             border-bottom: 1px solid #f0f0f0;
-             background-color: #fff;
-           }
-           
-           .zm-virtual-list.work-hours .zm-hours {
-             color: #ff4d4f;
-             font-size: 12px;
-           }
-         `
-       };
-
-       // Bug统计面板
-       const bugsPanel = {
-         strategy: {
-           title: 'Bug统计',
-           icon: 'icon-bug',
-           async render(content) {
-             try {
-               content.html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
-               
-               const bugs = await dataStrategies.fetch('bugs');
-               
-               content.empty();
-               if (!bugs || !Object.values(bugs).some(arr => arr.length > 0)) {
-                 content.append('<div class="zm-panel-item">暂无Bug</div>');
-                 return;
-               }
-
-               // 添加提示信息(如果是首次查看)
-               if (!localStorage.getItem('zm-bug-tip-shown')) {
-                 content.append(`
-                   <div class="zm-bug-tip">
-                     <span>💡 点击Bug ID可直接跳转到详情页</span>
-                     <span class="close-tip">×</span>
-                   </div>
-                 `);
-                 
-                 content.find('.close-tip').click(function() {
-                   $(this).parent().fadeOut(200);
-                   localStorage.setItem('zm-bug-tip-shown', 'true');
-                 });
-               }
-
-               // 更新分类配置和显示顺序
-               const categories = [
-                 { key: 'untreated36h', title: '36小时未处理', color: '#ff4d4f' },
-                 { key: 'unresolved72h', title: '72小时未解决', color: '#f5222d' },
-                 { key: 'pendingResolve', title: '待解决Bug', color: '#1890ff' },
-                 { key: 'new24h', title: '24小时内新增', color: '#52c41a' }
-               ];
-
-               // 添加展开全部按钮
-               content.append(`
-                 <div class="zm-bug-expand-all">
-                   <span class="expand-all-btn">展开全部</span>
-                 </div>
-               `);
-
-               categories.forEach(({key, title, color}) => {
-                 if (bugs[key].length > 0) {
-                   const isExpanded = key === 'pendingResolve'; // 默认展开待解决bug
-                   content.append(`
-                     <div class="zm-bug-category">
-                       <div class="zm-bug-category-title ${isExpanded ? 'expanded' : ''}" style="color: ${color}">
-                         <i class="icon icon-chevron-right ${isExpanded ? 'icon-rotate-90' : ''}"></i>
-                         ${title} (${bugs[key].length})
-                       </div>
-                       <div class="zm-bug-list-${key}" style="display: ${isExpanded ? 'block' : 'none'}"></div>
-                     </div>
-                   `);
-
-                   new VirtualScroll({
-                     container: content.find(`.zm-bug-list-${key}`),
-                     data: bugs[key],
-                     className: 'bugs',
-                     itemHeight: 32,
-                     visibleCount: Math.min(bugs[key].length, 5),
-                     maxHeight: 200, // 限制每个分类的最大高度
-                     renderItem: (bug) => {
-                       // 根据时长确定颜色类
-                       let colorClass = '';
-                       if (bug.hours <= 24) {
-                         colorClass = 'green';
-                       } else if (bug.hours <= 34) {
-                         colorClass = 'orange';
-                       } else if (bug.hours <= 70) {
-                         colorClass = 'yellow';
-                       } else {
-                         colorClass = 'red';
-                       }
-                       
-                       return $('<div>')
-                         .addClass('zm-bug-item')
-                         .css('cursor', 'pointer')
-                         .on('click', () => {
-                           window.open(`/bug-view-${bug.id}.html`, '_blank');
-                         })
-                         .append(
-                           $('<a>')
-                             .addClass('zm-bug-id')
-                             .attr('href', `/bug-view-${bug.id}.html`)
-                             .attr('target', '_blank')
-                             .text(`Bug: ${bug.id}`)
-                             .attr('title', bug.title),
-                           $('<span>')
-                             .addClass(`zm-bug-hours ${colorClass}`)
-                             .text(bug.timeStr)
-                         ).html();
-                     }
-                   });
-                 }
-               });
-               
-               // 添加折叠/展开事件处理
-               content.find('.zm-bug-category-title').click(function() {
-                 $(this).toggleClass('expanded');
-                 $(this).find('.icon').toggleClass('icon-rotate-90');
-                 $(this).next('.zm-bug-list-' + $(this).parent().find('[class^="zm-bug-list-"]').attr('class').split('-')[3]).slideToggle(200);
-                 
-                 // 检查是否所有分类都已展开
-                 const allExpanded = content.find('.zm-bug-category-title.expanded').length === content.find('.zm-bug-category-title').length;
-                 content.find('.expand-all-btn').text(allExpanded ? '折叠全部' : '展开全部');
-               });
-
-               // 展开全部按钮事件处理
-               content.find('.expand-all-btn').click(function() {
-                 const isExpandAll = $(this).text() === '展开全部';
-                 $(this).text(isExpandAll ? '折叠全部' : '展开全部');
-                 content.find('.zm-bug-category-title').each(function() {
-                   const $title = $(this);
-                   const $list = $title.next('[class^="zm-bug-list-"]');
-                   if (isExpandAll) {
-                     $title.addClass('expanded');
-                     $title.find('.icon').addClass('icon-rotate-90');
-                     $list.slideDown(200);
-                   } else {
-                     $title.removeClass('expanded');
-                     $title.find('.icon').removeClass('icon-rotate-90');
-                     $list.slideUp(200);
-                   }
-                 });
-               });
-               
-             } catch (err) {
-               if (err.name === 'AbortError') {
-                 content.html('<div class="zm-panel-item" style="text-align: center;">加载中...</div>');
-                 return;
-               }
-               content.html(`<div class="zm-panel-item error">加载失败: ${err.message}</div>`);
-             }
-           }
-         },
-         
-         style: `
-           .zm-virtual-list.bugs .zm-panel-item {
-             padding: 8px 12px;
-           }
-           
-           .zm-bug-category {
-             margin-bottom: 12px;
-           }
-
-           .zm-bug-category-title {
-             padding: 8px 12px;
-             font-weight: bold;
-             background: #fafafa;
-             cursor: pointer;
-             user-select: none;
-             display: flex;
-             align-items: center;
-           }
-           
-           .zm-bug-category-title:hover {
-             background: #f0f0f0;
-           }
-           
-           .zm-bug-category-title .icon {
-             margin-right: 8px;
-             transition: transform 0.2s;
-           }
-           
-           .zm-bug-category-title .icon-rotate-90 {
-             transform: rotate(90deg);
-           }
-           
-           .zm-bug-item {
-             display: flex;
-             align-items: center;
-             width: 100%;
-             transition: background-color 0.2s;
-           }
-           
-           .zm-bug-item:hover {
-             background-color: rgba(24, 144, 255, 0.1);
-           }
-           
-           .zm-bug-id {
-             color: #666;
-             margin-right: 8px;
-             cursor: pointer;
-             text-decoration: none;
-             position: relative;
-           }
-           
-           .zm-bug-id:hover {
-             color: #1890ff;
-             text-decoration: underline;
-           }
-           
-           /* 添加鼠标悬停提示图标 */
-           .zm-bug-id::before {
-             content: '🔗';
-             font-size: 12px;
-             margin-right: 4px;
-             opacity: 0;
-             transition: opacity 0.2s;
-           }
-           
-           .zm-bug-id:hover::before {
-             opacity: 1;
-           }
-           
-           /* 首次打开面板时的提示样式 */
-           .zm-bug-tip {
-             padding: 8px 12px;
-             background: #e6f7ff;
-             border: 1px solid #91d5ff;
-             border-radius: 4px;
-             margin-bottom: 8px;
-             font-size: 12px;
-             color: #1890ff;
-             display: flex;
-             align-items: center;
-             justify-content: space-between;
-           }
-           
-           .zm-bug-tip .close-tip {
-             cursor: pointer;
-             color: #1890ff;
-             font-size: 14px;
-           }
-           
-           .zm-bug-title {
-             flex: 1;
-             overflow: hidden;
-             text-overflow: ellipsis;
-             white-space: nowrap;
-           }
-           
-           .zm-bug-hours {
-             font-size: 12px;
-             margin-left: 8px;
-           }
-           
-           .zm-bug-hours.green { color: #52c41a; }
-           .zm-bug-hours.yellow { color: #faad14; }
-           .zm-bug-hours.orange { color: #fa8c16; }
-           .zm-bug-hours.red { color: #ff4d4f; }
-           
-           .zm-bug-expand-all {
-             padding: 8px 12px;
-             border-bottom: 1px solid #f0f0f0;
-           }
-
-           .expand-all-btn {
-             color: #1890ff;
-             cursor: pointer;
-             user-select: none;
-           }
-
-           .expand-all-btn:hover {
-             color: #40a9ff;
-           }
-         `
-       };
-
-       // 注册面板
-       panelStrategies.register('workHours', workHoursPanel.strategy);
-       panelStrategies.register('myBugs', bugsPanel.strategy);
-
-       // 添加样式
-       GM_addStyle(`
-         /* 通用虚拟列表样式 */
-         .zm-panel-content {
-           width: 100%;
-         }
-
-         .zm-virtual-list {
-           position: relative;
-           border-top: 1px solid #f0f0f0;
-           width: 100%;
-         }
-         
-         .zm-virtual-list .zm-virtual-content {
-           width: 100%;
-         }
-         
-         .zm-virtual-list .zm-panel-item {
-           box-sizing: border-box;
-           width: 100%;
-         }
-         
-         .zm-virtual-list .zm-panel-item:hover {
-           background-color: #f5f5f5;
-         }
-         
-         /* 各面板特定样式 */
-         ${workHoursPanel.style}
-         ${bugsPanel.style}
-       `);
   });
 })();
-
-// 添加面板样式
-GM_addStyle(`
-  .zm-panel {
-    position: fixed;
-    width: 300px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    display: none;
-    z-index: 9999;
-  }
-
-  .zm-panel-header {
-    padding: 12px;
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .zm-panel-tabs {
-    display: flex;
-    gap: 12px;
-  }
-
-  .zm-panel-tab {
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: all 0.3s;
-    user-select: none;
-  }
-
-  .zm-panel-tab:hover {
-    background: rgba(0,0,0,0.05);
-  }
-
-  .zm-panel-tab.active {
-    background: #1890ff;
-    color: white;
-  }
-
-  .zm-panel-tab i {
-    margin-right: 4px;
-  }
-
-  .zm-panel-content {
-    padding: 12px;
-    max-height: 400px;
-    overflow-y: auto;
-  }
-
-  .zm-panel-item {
-    padding: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .zm-panel-item:last-child {
-    border-bottom: none;
-  }
-`);
-
-// 简单的debounce实现
-function debounce(fn, delay) {
-  let timer = null;
-  return function(...args) {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      fn.apply(this, args);
-    }, delay);
-  };
-}
-
-
